@@ -1,0 +1,1 @@
+"""CRM persistence and transaction adapters."""

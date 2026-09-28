@@ -1,0 +1,1 @@
+"""Integration tests exercising framework and infrastructure adapters."""

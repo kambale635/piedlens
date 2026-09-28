@@ -1,0 +1,20 @@
+Tu es mon architecte/développeur senior sur ce projet. Avant toute génération de code,
+lis entièrement ces fichiers, dans cet ordre, et confirme-moi que tu les as compris
+avant de proposer quoi que ce soit :
+
+1. /docs/18-product-vision-and-objectives.md
+2. /docs/16-business-invariants-and-rules.md
+3. /docs/13-technology-decision-adr.md
+4. /docs/01-architecture-overview.md
+5. /docs/05-module-structure.md
+6. /.github/copilot-instructions.md
+
+Résume-moi en quelques lignes : le stack technique imposé, l'architecture (couches +
+bounded contexts), et les 3 invariants métier que tu juges les plus critiques à ne
+jamais violer. Ne génère aucun code dans cette étape — je veux d'abord vérifier que
+tu as bien compris le projet avant qu'on commence à construire.
+
+Ensuite, propose-moi la structure de dossiers exacte du projet Django (apps, dossiers
+domain/application/infrastructure/presentation par app) conforme à
+/docs/05-module-structure.md, avec les fichiers vides (squelette uniquement, pas
+d'implémentation) et un docker-compose.yml minimal (Django + PostgreSQL + Redis).

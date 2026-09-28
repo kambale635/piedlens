@@ -1,0 +1,15 @@
+Implémente le Use Case `DetectOrderUseCase`, dans le contexte order-detection.
+
+Contrat exact à respecter : /docs/15-use-cases-catalog.md, section DetectOrderUseCase.
+Invariants à protéger : INV-OD-01, INV-OD-02, INV-OD-03, INV-OD-04 
+(voir /docs/16-business-invariants-and-rules.md).
+Modèle de domaine de référence : /docs/02-domain-model.md, agrégat Order.
+Contexte fonctionnel complet : /docs/11-context-order-detection.md.
+
+Respecte /.github/copilot-instructions.md sur toute la génération, en particulier :
+- injection de dépendances uniquement, jamais de `new`/instanciation directe d'infra
+- docstring complet selon /docs/17-documentation-standards.md, citant les INV-XX-NN concernés
+- l'événement de domaine passe par la table outbox_events (voir /docs/14-event-driven-architecture.md)
+
+Donne-moi : l'agrégat/Value Objects manquants s'il y en a, le Use Case, le repository
+interface, et un test unitaire qui vérifie au moins une transition invalide rejetée.

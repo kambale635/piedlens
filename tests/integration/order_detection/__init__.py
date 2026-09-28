@@ -1,0 +1,1 @@
+"""Order Detection infrastructure integration tests."""

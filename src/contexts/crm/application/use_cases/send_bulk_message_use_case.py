@@ -62,12 +62,18 @@ class SendBulkMessageUseCase:
         self._outbox = outbox
         self._membership_calculator = SegmentMembershipCalculator()
 
-    def execute(self, segment_id: UUID, template: str, channel: str) -> SendBulkMessageResult:
+    def execute(
+        self,
+        segment_id: UUID,
+        template: str,
+        channel: str,
+        merchant_id: UUID | None = None,
+    ) -> SendBulkMessageResult:
         """Persist one campaign and publish its queue request without sending inline."""
         if channel not in self.SUPPORTED_CHANNELS:
             raise BulkMessageChannelException("Unsupported bulk message channel.")
         segment = self._segment_repository.find_by_id(segment_id)
-        if segment is None:
+        if segment is None or (merchant_id is not None and segment.merchant_id != merchant_id):
             raise SegmentNotFoundException("CRM segment was not found.")
 
         contacts = self._contact_repository.find_by_merchant(segment.merchant_id)

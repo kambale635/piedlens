@@ -25,7 +25,13 @@ class GetSegmentMembersUseCase:
         self._membership_cache = membership_cache
         self._calculator = SegmentMembershipCalculator()
 
-    def execute(self, segment_id: UUID, page: int = 1, page_size: int = 50) -> dict:
+    def execute(
+        self,
+        segment_id: UUID,
+        page: int = 1,
+        page_size: int = 50,
+        merchant_id: UUID | None = None,
+    ) -> dict:
         """Resolve a merchant segment and return the matching contacts for a page."""
         if (
             isinstance(page, bool)
@@ -37,7 +43,7 @@ class GetSegmentMembersUseCase:
         ):
             raise InvalidSegmentPaginationException("Page and page_size must be positive integers.")
         segment = self._segment_repository.find_by_id(segment_id)
-        if segment is None:
+        if segment is None or (merchant_id is not None and segment.merchant_id != merchant_id):
             raise SegmentNotFoundException("CRM segment was not found.")
 
         cached_result = self._membership_cache.get_members(

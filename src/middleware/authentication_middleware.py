@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.http import JsonResponse
+from django.utils.module_loading import import_string
 
 from .route_policy import emit_audit
 
@@ -14,9 +15,13 @@ class AuthenticationMiddleware:
 		return self.get_response(request)
 
 	def process_view(self, request, view_func, view_args, view_kwargs):
-		if getattr(view_func, "allow_anonymous", False):
+		is_public = getattr(view_func, "public_route", False) or getattr(view_func, "allow_anonymous", False)
+		if is_public and not getattr(view_func, "authentication_required", False):
+			return None
 			return None
 		authenticator = getattr(settings, "PIEDLENS_AUTHENTICATOR", None)
+		if isinstance(authenticator, str):
+			authenticator = import_string(authenticator)
 		principal = authenticator(request) if authenticator else getattr(request, "user", None)
 		if principal is not None and getattr(principal, "is_authenticated", False):
 			request.user = principal

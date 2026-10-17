@@ -2,7 +2,11 @@ import logging
 
 from django.http import JsonResponse
 
-from shared_kernel.application_exceptions import ResourceNotFoundException, ValidationException
+from shared_kernel.application_exceptions import (
+	ApplicationException,
+	ResourceNotFoundException,
+	ValidationException,
+)
 from shared_kernel.domain_exceptions import DomainException
 
 
@@ -24,6 +28,9 @@ class ExceptionHandlingMiddleware:
 				status, code = 404, "NOT_FOUND"
 			elif isinstance(error, ValidationException):
 				status, code = 400, getattr(error, "error_code", "VALIDATION_ERROR")
+			elif isinstance(error, (ApplicationException, DomainException)) and hasattr(error, "error_code"):
+				status = getattr(error, "status_code", 422)
+				code = error.error_code
 			elif isinstance(error, DomainException):
 				status, code = 422, "BUSINESS_RULE_VIOLATION"
 			else:

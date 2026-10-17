@@ -10,10 +10,18 @@ def requires_permission(permission: str):
     return decorate
 
 
-def allow_anonymous(view):
-    """Mark an explicitly public route for AuthenticationMiddleware."""
-    view.allow_anonymous = True
-    return view
+def public_route(view=None, *, authentication_required: bool = False):
+    """Declare an explicit public policy, optionally requiring an authenticated principal."""
+    def decorate(target):
+        target.public_route = True
+        target.authentication_required = authentication_required
+        target.allow_anonymous = not authentication_required
+        return target
+
+    return decorate(view) if view is not None else decorate
+
+
+allow_anonymous = public_route
 
 
 def emit_audit(request, outcome: str, permission: str | None = None) -> None:

@@ -101,6 +101,43 @@ from contexts.crm.infrastructure.persistence.django_relationship_anomaly_notific
 from contexts.crm.infrastructure.persistence.django_unit_of_work import DjangoCRMUnitOfWork
 from contexts.crm.infrastructure.adapters.system_clock import SystemCRMClock
 from contexts.crm.domain.services.loyalty_score_calculator import ILoyaltyScoreCalculator
+from contexts.identity.application.use_cases.authenticate_user_use_case import AuthenticateUserUseCase
+from contexts.identity.application.use_cases.change_subscription_plan_use_case import ChangeSubscriptionPlanUseCase
+from contexts.identity.application.use_cases.create_merchant_use_case import CreateMerchantUseCase
+from contexts.identity.application.use_cases.refresh_access_token_use_case import RefreshAccessTokenUseCase
+from contexts.identity.application.use_cases.register_user_use_case import RegisterUserUseCase
+from contexts.identity.infrastructure.adapters.django_security_services import DjangoPasswordHasher, DjangoTokenService
+from contexts.identity.infrastructure.adapters.system_clock import SystemIdentityClock
+from contexts.identity.infrastructure.messaging.django_identity_outbox import DjangoIdentityOutbox
+from contexts.identity.infrastructure.persistence.django_identity_repositories import (
+    DjangoMerchantRepository,
+    DjangoUserRepository,
+)
+from contexts.identity.infrastructure.persistence.django_identity_unit_of_work import DjangoIdentityUnitOfWork
+from contexts.access_control.application.use_cases.assign_owner_role_on_merchant_registered_use_case import (
+    AssignOwnerRoleOnMerchantRegisteredUseCase,
+)
+from contexts.access_control.application.use_cases.assign_role_to_user_use_case import AssignRoleToUserUseCase
+from contexts.access_control.application.use_cases.create_role_use_case import CreateRoleUseCase
+from contexts.access_control.application.use_cases.revoke_role_from_user_use_case import RevokeRoleFromUserUseCase
+from contexts.access_control.application.use_cases.update_role_permissions_use_case import (
+    UpdateRolePermissionsUseCase,
+)
+from contexts.access_control.infrastructure.adapters.django_permission_cache import DjangoPermissionCache
+from contexts.access_control.infrastructure.adapters.django_permission_catalog import DjangoPermissionCatalog
+from contexts.access_control.infrastructure.adapters.system_clock import SystemAccessControlClock
+from contexts.access_control.infrastructure.messaging.django_access_control_outbox import (
+    DjangoAccessControlOutbox,
+)
+from contexts.access_control.infrastructure.persistence.django_access_control_repository import (
+    DjangoAccessControlRepository,
+)
+from contexts.access_control.infrastructure.persistence.django_access_control_unit_of_work import (
+    DjangoAccessControlUnitOfWork,
+)
+from contexts.access_control.infrastructure.persistence.django_processed_event_repository import (
+    DjangoProcessedEventRepository,
+)
 
 
 class ApplicationContainer:
@@ -339,4 +376,68 @@ class ApplicationContainer:
             message_sender=message_sender,
             unit_of_work=DjangoCRMUnitOfWork(),
             outbox=DjangoCRMOutbox(),
+        )
+
+    @staticmethod
+    def register_user() -> RegisterUserUseCase:
+        return RegisterUserUseCase(
+            DjangoUserRepository(), DjangoPasswordHasher(), DjangoIdentityUnitOfWork(),
+            DjangoIdentityOutbox(), SystemIdentityClock(),
+        )
+
+    @staticmethod
+    def authenticate_user() -> AuthenticateUserUseCase:
+        return AuthenticateUserUseCase(DjangoUserRepository(), DjangoPasswordHasher(), DjangoTokenService())
+
+    @staticmethod
+    def refresh_access_token() -> RefreshAccessTokenUseCase:
+        return RefreshAccessTokenUseCase(DjangoTokenService(), DjangoUserRepository())
+
+    @staticmethod
+    def create_merchant() -> CreateMerchantUseCase:
+        return CreateMerchantUseCase(
+            DjangoMerchantRepository(), DjangoIdentityUnitOfWork(), DjangoIdentityOutbox(),
+            SystemIdentityClock(),
+        )
+
+    @staticmethod
+    def change_subscription_plan(usage_provider) -> ChangeSubscriptionPlanUseCase:
+        return ChangeSubscriptionPlanUseCase(
+            DjangoMerchantRepository(), usage_provider, DjangoIdentityUnitOfWork(),
+            DjangoIdentityOutbox(), SystemIdentityClock(),
+        )
+
+    @staticmethod
+    def create_role() -> CreateRoleUseCase:
+        return CreateRoleUseCase(
+            DjangoAccessControlRepository(), DjangoPermissionCatalog(), SystemAccessControlClock()
+        )
+
+    @staticmethod
+    def update_role_permissions() -> UpdateRolePermissionsUseCase:
+        return UpdateRolePermissionsUseCase(
+            DjangoAccessControlRepository(), DjangoPermissionCatalog(), DjangoPermissionCache(),
+            DjangoAccessControlOutbox(), DjangoAccessControlUnitOfWork(),
+        )
+
+    @staticmethod
+    def assign_role_to_user() -> AssignRoleToUserUseCase:
+        return AssignRoleToUserUseCase(
+            DjangoAccessControlRepository(), SystemAccessControlClock(), DjangoPermissionCache(),
+            DjangoAccessControlOutbox(), DjangoAccessControlUnitOfWork(),
+        )
+
+    @staticmethod
+    def revoke_role_from_user() -> RevokeRoleFromUserUseCase:
+        return RevokeRoleFromUserUseCase(
+            DjangoAccessControlRepository(), SystemAccessControlClock(), DjangoPermissionCache(),
+            DjangoAccessControlOutbox(), DjangoAccessControlUnitOfWork(),
+        )
+
+    @staticmethod
+    def assign_owner_role_on_merchant_registered() -> AssignOwnerRoleOnMerchantRegisteredUseCase:
+        return AssignOwnerRoleOnMerchantRegisteredUseCase(
+            DjangoAccessControlRepository(), SystemAccessControlClock(), DjangoPermissionCache(),
+            DjangoAccessControlOutbox(), DjangoAccessControlUnitOfWork(),
+            DjangoProcessedEventRepository(),
         )

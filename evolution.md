@@ -3,6 +3,24 @@
 Ce fichier conserve les decisions, documents consultes, fichiers crees ou modifies et prochaines etapes afin de faciliter la reprise du projet.
 Mettre a jour ce journal a chaque etape importante.
 
+## 2026-10-17 - Identity, Access Control et politiques de routes
+
+- Identity — `RegisterUserUseCase` : terminé, tests unitaires et parcours HTTP.
+- Identity — `AuthenticateUserUseCase` : terminé, erreurs anti-énumération et hash Django.
+- Identity — `RefreshAccessTokenUseCase` : terminé, refresh signé et vérification du statut utilisateur.
+- Identity — `CreateMerchantUseCase` : terminé, événement Outbox transactionnel; appartenance non persistée dans Identity (INV-ID-06).
+- Identity — `ChangeSubscriptionPlanUseCase` : implémenté; branchement au fournisseur d'usage/connecteur à finaliser avec Platform Connectors.
+- Access Control — `CreateRoleUseCase` : terminé, permission validée contre les routes réelles et acteur tracé.
+- Access Control — `UpdateRolePermissionsUseCase` : terminé, Outbox et invalidation du cache.
+- Access Control — `AssignRoleToUserUseCase` : terminé, contrôle anti-auto-élévation par scope et audit.
+- Access Control — `RevokeRoleFromUserUseCase` : terminé, audit et invalidation du cache.
+- Access Control — `CheckPermissionUseCase` : terminé, scope global/merchant et cache TTL.
+- Access Control — `AssignOwnerRoleOnMerchantRegisteredUseCase` : terminé, idempotence via assignation et `processed_events`.
+- API Identity/Access Control : routes du contrat 07 ajoutées; CRM et Order Detection n'ont aucune route spécifiée dans 07.
+- Middleware : marqueur explicite public/authentifié et refus par défaut testés.
+- Platform Connectors, Rules Engine et Backup : à faire après lecture de leurs contrats contextuels; non implémentés dans cette étape.
+- Outbox relay et publisher Redis : placeholders; blocants de mise en production.
+
 ## 2026-10-16 - Reprise de la structuration Clean Architecture
 
 - Périmètre courant : réorganiser les couches par bounded context selon `docs/05-module-structure.md`, sans modifier les contrats métier.

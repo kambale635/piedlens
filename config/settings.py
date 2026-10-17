@@ -52,6 +52,27 @@ DATABASES = {
 }
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+IDENTITY_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("IDENTITY_ACCESS_TOKEN_TTL_SECONDS", "900"))
+IDENTITY_REFRESH_TOKEN_TTL_SECONDS = int(
+    os.environ.get("IDENTITY_REFRESH_TOKEN_TTL_SECONDS", "2592000")
+)
+ACCESS_CONTROL_PERMISSION_CACHE_TTL_SECONDS = int(
+    os.environ.get("ACCESS_CONTROL_PERMISSION_CACHE_TTL_SECONDS", "15")
+)
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": REDIS_URL,
+        "TIMEOUT": ACCESS_CONTROL_PERMISSION_CACHE_TTL_SECONDS,
+    }
+}
+PIEDLENS_AUTHENTICATOR = (
+    "contexts.identity.infrastructure.adapters.http_authentication.authenticate_request"
+)
+PIEDLENS_PERMISSION_CHECKER = (
+    "contexts.access_control.infrastructure.adapters.django_permission_checker."
+    "DjangoAccessControlPermissionChecker"
+)
 CRM_SEGMENT_CACHE_TTL_SECONDS = int(
     os.environ.get("CRM_SEGMENT_CACHE_TTL_SECONDS", "300")
 )

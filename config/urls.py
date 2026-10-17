@@ -1,4 +1,7 @@
-from django.urls import path
+from django.urls import include, path
 
 
-urlpatterns = []
+urlpatterns = [
+	path("api/v1/", include("contexts.identity.urls")),
+	path("api/v1/", include("contexts.access_control.urls")),
+]

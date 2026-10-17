@@ -11,7 +11,7 @@ from middleware.exception_handling_middleware import ExceptionHandlingMiddleware
 from middleware.permission_middleware import PermissionMiddleware
 from middleware.rate_limit_middleware import RateLimitMiddleware
 from middleware.request_id_middleware import RequestIdMiddleware
-from middleware.route_policy import allow_anonymous, requires_permission
+from middleware.route_policy import allow_anonymous, public_route, requires_permission
 from middleware.tenant_isolation_middleware import TenantIsolationMiddleware
 from shared_kernel.application_exceptions import ValidationException
 
@@ -50,6 +50,10 @@ class MiddlewareChainTests(unittest.TestCase):
         public_view = allow_anonymous(lambda request: None)
         self.assertIsNone(middleware.process_view(self.request, public_view, (), {}))
 
+        authenticated_view = public_route(lambda request: None, authentication_required=True)
+        response = middleware.process_view(self.request, authenticated_view, (), {})
+        self.assertEqual(response.status_code, 401)
+
     def test_tenant_scope_comes_from_authenticated_principal(self):
         middleware = TenantIsolationMiddleware(lambda request: None)
         view = lambda request: None
@@ -80,6 +84,15 @@ class MiddlewareChainTests(unittest.TestCase):
         with override_settings(PIEDLENS_PERMISSION_CHECKER=None):
             response = middleware.process_view(self.request, view, (), {})
         self.assertEqual(response.status_code, 403)
+
+    def test_unmarked_route_is_denied_and_public_route_is_explicit(self):
+        middleware = PermissionMiddleware(lambda request: None)
+        unmarked_view = lambda request: None
+        response = middleware.process_view(self.request, unmarked_view, (), {})
+        self.assertEqual(response.status_code, 403)
+
+        public_view = public_route(lambda request: None)
+        self.assertIsNone(middleware.process_view(self.request, public_view, (), {}))
 
     def test_rate_limit_uses_injected_limiter(self):
         class Limiter:

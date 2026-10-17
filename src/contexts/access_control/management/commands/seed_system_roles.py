@@ -19,9 +19,23 @@ class Command(BaseCommand):
         repository = DjangoAccessControlRepository()
         permissions = DjangoPermissionCatalog().declared_permissions()
         now = SystemAccessControlClock().now_utc()
+        staff_permissions = frozenset(
+            {
+                "order.read",
+                "order.update_status",
+                "order.remind",
+                "order.review",
+                "contact.read",
+                "contact.merge",
+                "segment.create",
+                "segment.bulk_message",
+                "backup.read",
+                "backup.restore",
+            }
+        )
         for name, grants in (
             ("Owner", permissions),
-            ("Staff", frozenset()),
+            ("Staff", staff_permissions),
             ("PlatformAdmin", permissions),
         ):
             existing = repository.find_role_by_name(name)

@@ -19,13 +19,13 @@ Savoir **qui se connecte** (`User`) et **quel compte commercial existe** (`Merch
 | Attribut | Type |
 |---|---|
 | id | MerchantId [VO] |
-| ownerUserId | UserId [VO] (référence, pas l'objet) |
 | name | string non vide |
 | country / preferredLanguage / currency | CountryCode / LanguageCode / CurrencyCode [VO] (`currency` = devise principale, utilisée par INV-CRM-08) |
 | subscriptionPlan | SubscriptionPlan [VO] (Starter / Pro / Agency) |
 | createdAt | DateTime |
 
 L'appartenance d'un `User` à un `Merchant` (Owner, Staff, agence) n'est **jamais** stockée dans Identity : elle s'exprime uniquement par un `RoleAssignment` scopé (INV-ID-06).
+Lors de la création, `MerchantRegistered` transporte l'identifiant de l'utilisateur demandeur pour qu'Access Control crée l'assignation Owner; cet identifiant n'est pas persisté dans l'agrégat `Merchant`.
 
 ## Use Cases (contrats exacts dans `15-use-cases-catalog.md`)
 - `RegisterUserUseCase` : route publique, crée le `User`, événement `UserRegistered`.

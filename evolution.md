@@ -3,6 +3,15 @@
 Ce fichier conserve les decisions, documents consultes, fichiers crees ou modifies et prochaines etapes afin de faciliter la reprise du projet.
 Mettre a jour ce journal a chaque etape importante.
 
+## 2026-10-17 - Reprise de la phase avant production
+
+- Etat initial verifie : branche `main` a `7ea088f`; worktree sale avec changements interrompus concernant Redis Streams/Outbox, suppression merchant, S3 et configuration de déploiement. Aucun contenu préexistant n'a été réinitialisé.
+- Redis local répond `PONG`. Le test d'intégration Redis utilise désormais `REDIS_URL` (défaut localhost), échoue explicitement si le serveur est indisponible et nettoie ses clés de test; il ne peut plus être ignoré silencieusement faute de variable.
+- Transport Outbox/Redis Streams : relay multi-contextes, commandes relay/consumer, enveloppe versionnée, reprise `XAUTOCLAIM`, DLQ et migrations `next_attempt_at` présents. Ajout de tests intégration relay (publication réelle Outbox CRM vers Redis, succès, retry Redis) et consumer (reprise avant acquittement); validation ciblée 4/4.
+- `manage.py check` et `makemigrations --check --dry-run` passent avec `config.test_settings`.
+- Limites du jalon : garanties `SKIP LOCKED`/concurrence non vérifiées sur PostgreSQL; aucun test bout-en-bout du pipeline métier complet n'est exécuté. L'ancien venv `.venv` et Python système n'ont pas `redis`; l'environnement existant `venv/` contient `redis` et `boto3` et a été utilisé sans installation.
+- Prochaine étape : terminer et tester la suppression merchant distribuée par bounded context. Les handlers `MerchantDataDeleted` ne sont pas présents malgré la topologie documentée. Ensuite vérifier l'adaptateur S3 et le déploiement Compose, corriger leurs écarts, puis effectuer une seule suite complète en fin de phase.
+
 ## 2026-10-17 - Reprise des contrats API et contextes
 
 - CRM — `ListContactsUseCase` : terminé; contrat ajouté à 15, route `GET /contacts` (`contact.read`), tests pagination/scope.

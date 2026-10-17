@@ -112,6 +112,7 @@ class OutboxEventRecord(models.Model):
     payload = models.JSONField()
     published_at = models.DateTimeField(null=True, blank=True)
     attempts = models.PositiveIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "crm_outbox_events"

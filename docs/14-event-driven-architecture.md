@@ -123,3 +123,39 @@ La transaction englobe toutes les écritures SQL concernées : agrégat, outbox 
 La migration actuelle crée des tables préfixées `order_detection_*` dans le schéma PostgreSQL par défaut. L'ADR demande un schéma natif par bounded context; cette isolation de schéma n'est pas encore configurée et devra être ajoutée avec le routage/migrations PostgreSQL avant de revendiquer cette exigence comme satisfaite. Elle est indépendante de l'atomicité, qui reste assurée tant que les écritures restent sur la même base/connexion.
 
 Les tests d'intégration avec SQLite vérifient commit, rollback et idempotence, mais SQLite n'applique pas réellement `SELECT FOR UPDATE`. Un contrôle de concurrence PostgreSQL en CI reste obligatoire avant production.
+
+## Transport de production : Redis Streams
+
+Le publisher Redis est une implémentation partagée de l'interface `IEventPublisher` propre à chaque contexte. Il utilise `XADD` vers `<context>.events` et sérialise l'enveloppe versionnée définie plus haut sans aplatir `payload`. La connexion est construite depuis `REDIS_URL`; `rediss://` active TLS et la validation de certificat ne doit pas être désactivée en production.
+
+Chaque contexte producteur expose la commande Django `run_outbox_relay`. Son worker sélectionne un lot de lignes non publiées par ordre de création, sous `transaction.atomic()` avec `SELECT ... FOR UPDATE SKIP LOCKED`, publie l'enveloppe, puis renseigne `published_at` et l'essai réussi dans cette transaction. Les échecs augmentent le compteur et sont retentés avec backoff exponentiel configurable, plafonné; ils ne sont jamais marqués publiés. Un crash après `XADD` et avant le commit SQL peut produire un doublon Redis : c'est attendu, et l'idempotence consommateur par `eventId` est obligatoire.
+
+Les workers consommateurs lisent leur flux avec `XREADGROUP`. Le traitement métier et l'insertion de `(event_id, consumer_name)` dans `processed_events` ont lieu dans la même transaction PostgreSQL. `XACK` ne se produit qu'après commit. Les messages pendants abandonnés sont repris après un délai configurable avec `XAUTOCLAIM`; un crash après commit mais avant `XACK` provoque une relecture sans second effet métier grâce à INV-TR-03. Après cinq échecs de traitement, le worker publie l'enveloppe et les métadonnées d'erreur non sensibles dans `<consumer-context>.dlq`, puis acquitte l'entrée d'origine seulement après confirmation de l'écriture DLQ. Les erreurs et payloads de messages ne sont jamais écrits dans les logs.
+
+La topologie obligatoire est :
+
+| Flux producteur | Consumer group(s) |
+|---|---|
+| `platform-connectors.events` | `rules-engine`, `backup` |
+| `rules-engine.events` | `order-detection`, `crm` |
+| `order-detection.events` | `crm` |
+| `backup.events` | `identity`, `access-control`, `platform-connectors`, `rules-engine`, `order-detection`, `crm` pour `MerchantDataDeleted` |
+
+Les groupes ne traitent que les types d'événements auxquels ils sont abonnés; les autres messages sont acquittés sans effet métier après filtrage transactionnel sûr. `MerchantDataPurged` reste un événement de résultat, non un ordre de purge.
+
+## Purge après suppression d'un merchant
+
+`MerchantDataDeleted` est diffusé par l'Outbox Backup. Chaque contexte purge uniquement ses données locales, de façon reprenable et idempotente, puis émet `MerchantDataPurged { context, merchantId }` via sa propre Outbox :
+
+- `order-detection` : `Orders`, `Reminders`, `DetectionCandidates`;
+- `crm` : `Contacts`, segments, historique d'achats, notifications et logs d'envoi;
+- `platform-connectors` : connexions (destruction irréversible des tokens) et messages stockés;
+- `rules-engine` : seuls les `RuleSets` de scope merchant, jamais les scopes pays/global;
+- `access-control` : `RoleAssignments` scopés au merchant; les entrées d'audit sont conservées avec identifiants seulement et sans contenu de message;
+- `identity` : le `Merchant` est supprimé; le `User` est conservé, car il peut appartenir à d'autres merchants.
+
+Pour respecter INV-TR-01, les différents agrégats d'un même contexte ne sont pas modifiés dans une transaction commune. Un marqueur local d'achèvement rend la reprise idempotente; l'événement `MerchantDataPurged` est ajouté dans la transaction qui clôt cette purge locale. L'effacement d'objets S3 s'appuie sur une file/reprise idempotente, car une suppression distante ne peut pas participer à la transaction PostgreSQL.
+
+## Configuration et tests requis
+
+Les paramètres `REDIS_URL`, `OUTBOX_RELAY_BATCH_SIZE`, `OUTBOX_RELAY_POLL_INTERVAL_SECONDS`, `OUTBOX_RELAY_BACKOFF_BASE_SECONDS`, `OUTBOX_RELAY_BACKOFF_MAX_SECONDS`, `STREAM_CLAIM_IDLE_MS` et `STREAM_MAX_DELIVERIES=5` proviennent de l'environnement, jamais de secrets codés en dur. Les tests d'intégration de transport utilisent un vrai Redis et couvrent la publication, les consumer groups, `XAUTOCLAIM`, DLQ et crash avant `XACK`; le test de bout en bout vérifie le parcours `MessageReceived` jusqu'à la mise à jour CRM via la détection d'une `Order` ou d'un `DetectionCandidate`.

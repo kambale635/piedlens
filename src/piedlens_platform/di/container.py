@@ -145,6 +145,12 @@ from contexts.access_control.infrastructure.persistence.django_processed_event_r
 from contexts.identity.infrastructure.adapters.django_connection_plan_reader import (
     DjangoConnectionPlanReader,
 )
+from contexts.identity.infrastructure.adapters.django_merchant_currency_reader import (
+    DjangoMerchantCurrencyReader,
+)
+from contexts.crm.infrastructure.adapters.django_contact_defaults_provider import (
+    DjangoContactDefaultsProvider,
+)
 from contexts.platform_connectors.application.use_cases.connect_platform_use_case import (
     ConnectPlatformUseCase,
 )
@@ -171,6 +177,9 @@ from contexts.platform_connectors.infrastructure.adapters.django_webhook_signatu
 )
 from contexts.platform_connectors.infrastructure.adapters.mock_platform_gateway import (
     MockPlatformGateway,
+)
+from contexts.platform_connectors.infrastructure.adapters.environment_platform_gateway import (
+    configured_platform_gateway,
 )
 from contexts.platform_connectors.infrastructure.adapters.mock_webhook_payload_mapper import (
     MockWebhookPayloadMapper,
@@ -228,6 +237,9 @@ from contexts.backup.application.use_cases.create_snapshot_use_case import Creat
 from contexts.backup.application.use_cases.delete_all_merchant_data_use_case import (
     DeleteAllMerchantDataUseCase,
 )
+from contexts.backup.application.use_cases.request_merchant_deletion_use_case import (
+    RequestMerchantDeletionUseCase,
+)
 from contexts.backup.application.use_cases.get_backup_export_use_case import GetBackupExportUseCase
 from contexts.backup.application.use_cases.list_backups_use_case import ListBackupsUseCase
 from contexts.backup.application.use_cases.restore_from_snapshot_use_case import (
@@ -241,7 +253,11 @@ from contexts.backup.infrastructure.messaging.django_backup_outbox import Django
 from contexts.backup.infrastructure.persistence.django_backup_repository import (
     DjangoBackupRepository,
 )
-from contexts.backup.infrastructure.persistence.django_object_storage import DjangoObjectStorage
+from contexts.backup.infrastructure.persistence.s3_object_storage import configured_object_storage
+from contexts.backup.infrastructure.persistence.django_deletion_token_store import DjangoDeletionTokenStore
+from contexts.identity.infrastructure.adapters.django_reauthentication_verifier import (
+    DjangoReauthenticationVerifier,
+)
 from contexts.backup.infrastructure.persistence.django_unit_of_work import DjangoBackupUnitOfWork
 from contexts.crm.infrastructure.adapters.django_backup_contact_reader import DjangoBackupContactReader
 from contexts.platform_connectors.infrastructure.adapters.django_account_health_checker import (
@@ -384,22 +400,24 @@ class ApplicationContainer:
 
     @staticmethod
     def update_contact_from_message(
-        defaults_provider: IContactDefaultsProvider,
+        defaults_provider: IContactDefaultsProvider | None = None,
     ) -> UpdateContactFromMessageUseCase:
         """Wire CRM message processing with injected merchant defaults and Django adapters."""
         return UpdateContactFromMessageUseCase(
             contact_repository=DjangoContactRepository(
                 segment_membership_cache=ApplicationContainer._crm_segment_cache()
             ),
-            defaults_provider=defaults_provider,
+            defaults_provider=defaults_provider or DjangoContactDefaultsProvider(
+                DjangoMerchantCurrencyReader()
+            ),
             processed_messages=DjangoProcessedMessageRepository(),
             unit_of_work=DjangoCRMUnitOfWork(),
         )
 
     @staticmethod
     def update_contact_from_order(
-        loyalty_score_calculator: ILoyaltyScoreCalculator,
-        defaults_provider: IContactDefaultsProvider,
+        loyalty_score_calculator: ILoyaltyScoreCalculator | None = None,
+        defaults_provider: IContactDefaultsProvider | None = None,
     ) -> UpdateContactFromOrderUseCase:
         """Wire delivered-order CRM updates and require a configured loyalty calculator."""
         return UpdateContactFromOrderUseCase(
@@ -407,7 +425,9 @@ class ApplicationContainer:
                 segment_membership_cache=ApplicationContainer._crm_segment_cache()
             ),
             loyalty_score_calculator=loyalty_score_calculator,
-            defaults_provider=defaults_provider,
+            defaults_provider=defaults_provider or DjangoContactDefaultsProvider(
+                DjangoMerchantCurrencyReader()
+            ),
             processed_messages=DjangoProcessedMessageRepository(),
             unit_of_work=DjangoCRMUnitOfWork(),
         )
@@ -535,7 +555,7 @@ class ApplicationContainer:
         """Wire the mock provider and shared plan/usage ports for connection creation."""
         return ConnectPlatformUseCase(
             connections=DjangoPlatformConnectionRepository(),
-            gateway=MockPlatformGateway(),
+            gateway=configured_platform_gateway("whatsapp"),
             cipher=DjangoAesTokenCipher(),
             usage_reader=DjangoConnectionUsageReader(),
             plan_reader=DjangoConnectionPlanReader(),
@@ -562,7 +582,7 @@ class ApplicationContainer:
         return SyncMessagesUseCase(
             connections=DjangoPlatformConnectionRepository(),
             messages=DjangoMessageRepository(),
-            gateway=MockPlatformGateway(),
+            gateway=configured_platform_gateway("whatsapp"),
             unit_of_work=DjangoPlatformConnectorsUnitOfWork(),
             outbox=DjangoPlatformConnectorsOutbox(),
             clock=SystemPlatformClock(),
@@ -581,7 +601,7 @@ class ApplicationContainer:
         """Wire token refresh while keeping plaintext credentials inside adapters."""
         return RefreshTokensUseCase(
             connections=DjangoPlatformConnectionRepository(),
-            gateway=MockPlatformGateway(),
+            gateway=configured_platform_gateway("whatsapp"),
             cipher=DjangoAesTokenCipher(),
             unit_of_work=DjangoPlatformConnectorsUnitOfWork(),
             outbox=DjangoPlatformConnectorsOutbox(),
@@ -627,7 +647,7 @@ class ApplicationContainer:
         """Wire snapshot creation to the shared consent and owner-context data ports."""
         return CreateSnapshotUseCase(
             backups=DjangoBackupRepository(),
-            storage=DjangoObjectStorage(),
+            storage=configured_object_storage(),
             consent_reader=DjangoConnectionConsentReader(),
             message_reader=DjangoBackupMessageReader(),
             contact_reader=DjangoBackupContactReader(),
@@ -646,7 +666,7 @@ class ApplicationContainer:
         """Wire snapshot export and configured signed URL lifetime."""
         return RestoreFromSnapshotUseCase(
             backups=DjangoBackupRepository(),
-            storage=DjangoObjectStorage(),
+            storage=configured_object_storage(),
             unit_of_work=DjangoBackupUnitOfWork(),
             clock=SystemBackupClock(),
             export_ttl_minutes=settings.BACKUP_EXPORT_TTL_MINUTES,
@@ -672,10 +692,19 @@ class ApplicationContainer:
         """Wire irreversible merchant purge behind the configured confirmation verifier."""
         return DeleteAllMerchantDataUseCase(
             backups=DjangoBackupRepository(),
-            storage=DjangoObjectStorage(),
+            storage=configured_object_storage(),
             token_verifier=DjangoConfirmationTokenVerifier(),
             unit_of_work=DjangoBackupUnitOfWork(),
             outbox=DjangoBackupOutbox(),
+            clock=SystemBackupClock(),
+        )
+
+    @staticmethod
+    def request_merchant_deletion() -> RequestMerchantDeletionUseCase:
+        """Wire reauthentication through Identity and token persistence through Backup."""
+        return RequestMerchantDeletionUseCase(
+            reauthentication=DjangoReauthenticationVerifier(),
+            tokens=DjangoDeletionTokenStore(),
             clock=SystemBackupClock(),
         )
 

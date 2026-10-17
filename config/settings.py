@@ -7,10 +7,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or secrets.token_urlsafe(50)
 DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+if os.environ.get("DJANGO_ENV") == "production":
+    if not os.environ.get("DJANGO_SECRET_KEY"):
+        raise RuntimeError("DJANGO_SECRET_KEY must be configured in production.")
+    if not os.environ.get("DJANGO_ALLOWED_HOSTS"):
+        raise RuntimeError("DJANGO_ALLOWED_HOSTS must be configured in production.")
+    if DEBUG:
+        raise RuntimeError("DJANGO_DEBUG must be disabled in production.")
 
 INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
+    "piedlens_platform.event_bus.apps.EventBusConfig",
     "contexts.rules_engine.apps.RulesEngineConfig",
     "contexts.identity.apps.IdentityConfig",
     "contexts.access_control.apps.AccessControlConfig",
@@ -48,10 +56,42 @@ DATABASES = {
         "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""),
         "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
         "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        "OPTIONS": {
+            "sslmode": os.environ.get("POSTGRES_SSLMODE", "prefer"),
+            **(
+                {"sslrootcert": os.environ["POSTGRES_SSLROOTCERT"]}
+                if os.environ.get("POSTGRES_SSLROOTCERT")
+                else {}
+            ),
+        },
     }
 }
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+REDIS_TLS_CA_CERTS = os.environ.get("REDIS_TLS_CA_CERTS") or None
+REDIS_CLIENT_OPTIONS = {
+    "ssl_ca_certs": REDIS_TLS_CA_CERTS,
+    "ssl_cert_reqs": "required" if REDIS_TLS_CA_CERTS else None,
+}
+OUTBOX_RELAY_BATCH_SIZE = int(os.environ.get("OUTBOX_RELAY_BATCH_SIZE", "100"))
+OUTBOX_RELAY_POLL_INTERVAL_SECONDS = float(
+    os.environ.get("OUTBOX_RELAY_POLL_INTERVAL_SECONDS", "1")
+)
+OUTBOX_RELAY_BACKOFF_BASE_SECONDS = float(
+    os.environ.get("OUTBOX_RELAY_BACKOFF_BASE_SECONDS", "1")
+)
+OUTBOX_RELAY_BACKOFF_MAX_SECONDS = float(
+    os.environ.get("OUTBOX_RELAY_BACKOFF_MAX_SECONDS", "300")
+)
+STREAM_CLAIM_IDLE_MS = int(os.environ.get("STREAM_CLAIM_IDLE_MS", "60000"))
+STREAM_MAX_DELIVERIES = int(os.environ.get("STREAM_MAX_DELIVERIES", "5"))
+CONSUMER_CONTEXT = os.environ.get("CONSUMER_CONTEXT", "")
+ORDER_DETECTION_CONFIDENCE_THRESHOLD = int(
+    os.environ.get("ORDER_DETECTION_CONFIDENCE_THRESHOLD", "70")
+)
+ORDER_DETECTION_CORRELATION_WINDOW_DAYS = int(
+    os.environ.get("ORDER_DETECTION_CORRELATION_WINDOW_DAYS", "3")
+)
 IDENTITY_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("IDENTITY_ACCESS_TOKEN_TTL_SECONDS", "900"))
 IDENTITY_REFRESH_TOKEN_TTL_SECONDS = int(
     os.environ.get("IDENTITY_REFRESH_TOKEN_TTL_SECONDS", "2592000")
@@ -63,8 +103,12 @@ CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": REDIS_URL,
+        "OPTIONS": {"ssl_ca_certs": REDIS_TLS_CA_CERTS} if REDIS_TLS_CA_CERTS else {},
         "TIMEOUT": ACCESS_CONTROL_PERMISSION_CACHE_TTL_SECONDS,
     }
+}
+PLATFORM_ADAPTERS = {
+    "whatsapp": os.environ.get("WHATSAPP_ADAPTER", "mock"),
 }
 PIEDLENS_AUTHENTICATOR = (
     "contexts.identity.infrastructure.adapters.http_authentication.authenticate_request"
@@ -97,6 +141,18 @@ BACKUP_EXPORT_BASE_URL = os.environ.get(
 )
 BACKUP_EXPORT_TTL_MINUTES = int(os.environ.get("BACKUP_EXPORT_TTL_MINUTES", "60"))
 BACKUP_DELETE_CONFIRMATION_SECRET = os.environ.get("BACKUP_DELETE_CONFIRMATION_SECRET", "")
+BACKUP_OBJECT_STORAGE_BACKEND = os.environ.get("BACKUP_OBJECT_STORAGE_BACKEND", "postgres")
+BACKUP_S3_BUCKET = os.environ.get("BACKUP_S3_BUCKET", "")
+BACKUP_S3_REGION = os.environ.get("BACKUP_S3_REGION", "us-east-1")
+BACKUP_S3_ENDPOINT_URL = os.environ.get("BACKUP_S3_ENDPOINT_URL", "")
+BACKUP_S3_ACCESS_KEY_ID = os.environ.get("BACKUP_S3_ACCESS_KEY_ID", "")
+BACKUP_S3_SECRET_ACCESS_KEY = os.environ.get("BACKUP_S3_SECRET_ACCESS_KEY", "")
+BACKUP_S3_USE_TLS = os.environ.get("BACKUP_S3_USE_TLS", "1") == "1"
+BACKUP_S3_VERIFY_TLS = os.environ.get("BACKUP_S3_VERIFY_TLS", "1") == "1"
+if os.environ.get("DJANGO_SECURE_COOKIES", "0") == "1":
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+SECURE_SSL_REDIRECT = os.environ.get("DJANGO_SECURE_SSL_REDIRECT", "0") == "1"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"

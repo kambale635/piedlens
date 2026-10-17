@@ -48,6 +48,20 @@ class BackupObjectRecord(models.Model):
         db_table = "backup_objects"
 
 
+class MerchantDeletionTokenRecord(models.Model):
+    """Hashed, merchant-bound, single-use confirmation token (INV-BK-05)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    merchant_id = models.UUIDField(db_index=True)
+    user_id = models.UUIDField()
+    token_hash = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField(db_index=True)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "backup_merchant_deletion_tokens"
+
+
 class OutboxEventRecord(models.Model):
     """Durable Backup producer event committed with snapshot/deletion changes (INV-TR-02)."""
 
@@ -60,6 +74,7 @@ class OutboxEventRecord(models.Model):
     payload = models.JSONField(encoder=DjangoJSONEncoder)
     published_at = models.DateTimeField(null=True, blank=True)
     attempts = models.PositiveIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "backup_outbox_events"

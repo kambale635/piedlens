@@ -157,7 +157,7 @@ class FakeUsage:
     def __init__(self, count):
         self.count = count
 
-    def active_connection_count(self, merchant_id):
+    def count_active_connections(self, merchant_id):
         return self.count
 
 

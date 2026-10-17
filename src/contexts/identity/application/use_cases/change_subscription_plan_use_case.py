@@ -10,14 +10,14 @@ from ..ports.identity_ports import (
     IIdentityOutbox,
     IIdentityUnitOfWork,
     IMerchantRepository,
-    IPlatformUsageProvider,
 )
+from shared_kernel.ports import IConnectionUsageReader
 
 
 class ChangeSubscriptionPlanUseCase:
     """Apply a confirmed subscription plan without exceeding current usage (INV-ID-03)."""
 
-    def __init__(self, merchants: IMerchantRepository, usage: IPlatformUsageProvider,
+    def __init__(self, merchants: IMerchantRepository, usage: IConnectionUsageReader,
                  unit_of_work: IIdentityUnitOfWork, outbox: IIdentityOutbox,
                  clock: IIdentityClock) -> None:
         self.merchants = merchants
@@ -35,7 +35,9 @@ class ChangeSubscriptionPlanUseCase:
             plan = SubscriptionPlan(new_plan)
         except ValueError as error:
             raise InvalidMerchantData() from error
-        updated = merchant.change_plan(plan, self.usage.active_connection_count(merchant_id))
+        updated = merchant.change_plan(
+            plan, self.usage.count_active_connections(merchant_id)
+        )
         effective_at = self.clock.now_utc().astimezone(timezone.utc)
         with self.unit_of_work:
             self.merchants.save(updated)

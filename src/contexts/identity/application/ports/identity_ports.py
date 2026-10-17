@@ -3,6 +3,7 @@ from uuid import UUID
 
 from ...domain.entities.merchant import Merchant
 from ...domain.entities.user import User
+from shared_kernel.ports import IConnectionUsageReader
 
 
 class IUserRepository(Protocol):
@@ -34,10 +35,6 @@ class IIdentityOutbox(Protocol):
 class IIdentityUnitOfWork(Protocol):
     def __enter__(self) -> "IIdentityUnitOfWork": ...
     def __exit__(self, exception_type, exception, traceback) -> bool | None: ...
-
-
-class IPlatformUsageProvider(Protocol):
-    def active_connection_count(self, merchant_id: UUID) -> int: ...
 
 
 class IIdentityClock(Protocol):

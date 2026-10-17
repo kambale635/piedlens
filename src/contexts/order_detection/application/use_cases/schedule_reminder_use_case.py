@@ -70,6 +70,7 @@ class ScheduleReminderUseCase:
         order_id: UUID,
         reminder_type: str,
         custom_message: str | None = None,
+        merchant_id: UUID | None = None,
     ) -> ScheduleReminderResult:
         """Persist the reminder and scheduling event in a single database transaction."""
         try:
@@ -80,7 +81,7 @@ class ScheduleReminderUseCase:
         with self._unit_of_work:
             self._unit_of_work.lock_order(order_id)
             order = self._order_repository.find_by_id(order_id)
-            if order is None:
+            if order is None or (merchant_id is not None and order.merchant_id != merchant_id):
                 raise ResourceNotFoundException("Order was not found.")
 
             applicable_status = {

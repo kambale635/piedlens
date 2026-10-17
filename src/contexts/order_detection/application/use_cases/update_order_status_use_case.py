@@ -69,7 +69,11 @@ class UpdateOrderStatusUseCase:
         self._clock = clock
 
     def execute(
-        self, order_id: UUID, new_status: str, triggered_by: str
+        self,
+        order_id: UUID,
+        new_status: str,
+        triggered_by: str,
+        merchant_id: UUID | None = None,
     ) -> UpdateOrderStatusResult:
         """Change and persist an Order status with a transactional domain event."""
         try:
@@ -84,7 +88,7 @@ class UpdateOrderStatusUseCase:
         with self._unit_of_work:
             self._unit_of_work.lock_order(order_id)
             order = self._order_repository.find_by_id(order_id)
-            if order is None:
+            if order is None or (merchant_id is not None and order.merchant_id != merchant_id):
                 raise ResourceNotFoundException("Order was not found.")
 
             previous_status = order.status

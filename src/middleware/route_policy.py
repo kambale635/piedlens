@@ -1,10 +1,12 @@
-def requires_permission(permission: str):
+def requires_permission(permission: str, *, global_scope_param: str | None = None):
     """Declare the permission checked by PermissionMiddleware for a route."""
     if not isinstance(permission, str) or not permission.strip():
         raise ValueError("Permission name must be a non-empty string.")
 
     def decorate(view):
         view.required_permission = permission
+        if global_scope_param is not None:
+            view.global_scope_param = global_scope_param
         return view
 
     return decorate

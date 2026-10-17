@@ -27,5 +27,12 @@ class TenantIsolationMiddleware:
 				{"errorCode": "TENANT_REQUIRED", "correlationId": getattr(request, "correlation_id", "")},
 				status=403,
 			)
+		route_merchant_id = view_kwargs.get("merchant_id")
+		if route_merchant_id is not None and str(route_merchant_id) != str(merchant_id):
+			emit_audit(request, "denied", "tenant")
+			return JsonResponse(
+				{"errorCode": "TENANT_REQUIRED", "correlationId": getattr(request, "correlation_id", "")},
+				status=403,
+			)
 		request.merchant_id = merchant_id
 		return None

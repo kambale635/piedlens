@@ -82,6 +82,21 @@ CRM_ANOMALY_MIN_INACTIVITY_DAYS = int(
     os.environ.get("CRM_ANOMALY_MIN_INACTIVITY_DAYS", "7")
 )
 CRM_RELATIONSHIP_ANOMALY_BY_MERCHANT = {}
+ORDER_REMINDER_DELAYS_SECONDS = {
+    "payment_pending": int(os.environ.get("ORDER_PAYMENT_REMINDER_DELAY_SECONDS", "86400")),
+    "delivery_pending": int(os.environ.get("ORDER_DELIVERY_REMINDER_DELAY_SECONDS", "86400")),
+}
+PLATFORM_TOKEN_ENCRYPTION_KEY = os.environ.get("PLATFORM_TOKEN_ENCRYPTION_KEY", "")
+PLATFORM_WEBHOOK_SECRETS = {
+    "whatsapp": os.environ.get("WHATSAPP_WEBHOOK_SECRET", ""),
+    "instagram": os.environ.get("INSTAGRAM_WEBHOOK_SECRET", ""),
+}
+BACKUP_EXPORT_SIGNING_SECRET = os.environ.get("BACKUP_EXPORT_SIGNING_SECRET", "")
+BACKUP_EXPORT_BASE_URL = os.environ.get(
+    "BACKUP_EXPORT_BASE_URL", "http://localhost:8000/api/v1/backups/objects"
+)
+BACKUP_EXPORT_TTL_MINUTES = int(os.environ.get("BACKUP_EXPORT_TTL_MINUTES", "60"))
+BACKUP_DELETE_CONFIRMATION_SECRET = os.environ.get("BACKUP_DELETE_CONFIRMATION_SECRET", "")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"

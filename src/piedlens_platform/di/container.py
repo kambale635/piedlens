@@ -60,6 +60,9 @@ from contexts.order_detection.infrastructure.persistence.django_unit_of_work imp
     DjangoOrderDetectionUnitOfWork,
 )
 from contexts.order_detection.infrastructure.adapters.system_clock import SystemClock
+from contexts.order_detection.infrastructure.adapters.django_reminder_policy_provider import (
+    DjangoReminderPolicyProvider,
+)
 from contexts.crm.application.ports.contact_defaults import IContactDefaultsProvider
 from contexts.crm.application.use_cases.update_contact_from_message_use_case import (
     UpdateContactFromMessageUseCase,
@@ -80,6 +83,7 @@ from contexts.crm.application.use_cases.detect_relationship_anomaly_use_case imp
 )
 from contexts.crm.application.use_cases.create_segment_use_case import CreateSegmentUseCase
 from contexts.crm.application.use_cases.get_segment_members_use_case import GetSegmentMembersUseCase
+from contexts.crm.application.use_cases.list_contacts_use_case import ListContactsUseCase
 from contexts.crm.infrastructure.persistence.django_contact_repository import DjangoContactRepository
 from contexts.crm.infrastructure.persistence.django_segment_repository import DjangoSegmentRepository
 from contexts.crm.infrastructure.persistence.django_bulk_message_campaign_repository import (
@@ -137,6 +141,117 @@ from contexts.access_control.infrastructure.persistence.django_access_control_un
 )
 from contexts.access_control.infrastructure.persistence.django_processed_event_repository import (
     DjangoProcessedEventRepository,
+)
+from contexts.identity.infrastructure.adapters.django_connection_plan_reader import (
+    DjangoConnectionPlanReader,
+)
+from contexts.platform_connectors.application.use_cases.connect_platform_use_case import (
+    ConnectPlatformUseCase,
+)
+from contexts.platform_connectors.application.use_cases.handle_incoming_webhook_use_case import (
+    HandleIncomingWebhookUseCase,
+)
+from contexts.platform_connectors.application.use_cases.refresh_tokens_use_case import (
+    RefreshTokensUseCase,
+)
+from contexts.platform_connectors.application.use_cases.sync_messages_use_case import (
+    SyncMessagesUseCase,
+)
+from contexts.platform_connectors.application.use_cases.sync_active_connections_job import (
+    SyncActiveConnectionsJob,
+)
+from contexts.platform_connectors.infrastructure.adapters.django_aes_token_cipher import (
+    DjangoAesTokenCipher,
+)
+from contexts.platform_connectors.infrastructure.adapters.django_connection_usage_reader import (
+    DjangoConnectionUsageReader,
+)
+from contexts.platform_connectors.infrastructure.adapters.django_webhook_signature_verifier import (
+    DjangoWebhookSignatureVerifier,
+)
+from contexts.platform_connectors.infrastructure.adapters.mock_platform_gateway import (
+    MockPlatformGateway,
+)
+from contexts.platform_connectors.infrastructure.adapters.mock_webhook_payload_mapper import (
+    MockWebhookPayloadMapper,
+)
+from contexts.platform_connectors.infrastructure.adapters.system_platform_clock import (
+    SystemPlatformClock,
+)
+from contexts.platform_connectors.infrastructure.persistence.django_message_repository import (
+    DjangoMessageRepository,
+)
+from contexts.platform_connectors.infrastructure.persistence.django_platform_connection_repository import (
+    DjangoPlatformConnectionRepository,
+)
+from contexts.platform_connectors.infrastructure.persistence.django_platform_outbox import (
+    DjangoPlatformConnectorsOutbox,
+)
+from contexts.platform_connectors.infrastructure.persistence.django_unit_of_work import (
+    DjangoPlatformConnectorsUnitOfWork,
+)
+from contexts.identity.infrastructure.adapters.django_merchant_country_reader import (
+    DjangoMerchantCountryReader,
+)
+from contexts.rules_engine.application.use_cases.adjust_rule_weight_from_correction_use_case import (
+    AdjustRuleWeightFromCorrectionUseCase,
+)
+from contexts.rules_engine.application.use_cases.evaluate_message_use_case import (
+    EvaluateMessageUseCase,
+)
+from contexts.rules_engine.application.use_cases.update_rule_set_use_case import (
+    UpdateRuleSetUseCase,
+)
+from contexts.rules_engine.domain.value_objects.rule_type import RuleType
+from contexts.rules_engine.domain.services.rule_evaluators import (
+    AmountPatternEvaluator,
+    EmojiMatchEvaluator,
+    KeywordMatchEvaluator,
+    MediaPresenceEvaluator,
+)
+from contexts.rules_engine.infrastructure.messaging.django_rules_engine_outbox import (
+    DjangoRulesEngineOutbox,
+)
+from contexts.rules_engine.infrastructure.persistence.django_processed_event_repository import (
+    DjangoProcessedEventRepository as DjangoRulesProcessedEventRepository,
+)
+from contexts.rules_engine.infrastructure.persistence.django_rule_set_repository import (
+    DjangoRuleSetRepository,
+)
+from contexts.rules_engine.infrastructure.persistence.django_unit_of_work import (
+    DjangoRulesEngineUnitOfWork,
+)
+from contexts.backup.application.use_cases.check_account_health_use_case import (
+    CheckAccountHealthUseCase,
+)
+from contexts.backup.application.use_cases.create_snapshot_use_case import CreateSnapshotUseCase
+from contexts.backup.application.use_cases.delete_all_merchant_data_use_case import (
+    DeleteAllMerchantDataUseCase,
+)
+from contexts.backup.application.use_cases.get_backup_export_use_case import GetBackupExportUseCase
+from contexts.backup.application.use_cases.list_backups_use_case import ListBackupsUseCase
+from contexts.backup.application.use_cases.restore_from_snapshot_use_case import (
+    RestoreFromSnapshotUseCase,
+)
+from contexts.backup.infrastructure.adapters.django_confirmation_token_verifier import (
+    DjangoConfirmationTokenVerifier,
+)
+from contexts.backup.infrastructure.adapters.system_backup_clock import SystemBackupClock
+from contexts.backup.infrastructure.messaging.django_backup_outbox import DjangoBackupOutbox
+from contexts.backup.infrastructure.persistence.django_backup_repository import (
+    DjangoBackupRepository,
+)
+from contexts.backup.infrastructure.persistence.django_object_storage import DjangoObjectStorage
+from contexts.backup.infrastructure.persistence.django_unit_of_work import DjangoBackupUnitOfWork
+from contexts.crm.infrastructure.adapters.django_backup_contact_reader import DjangoBackupContactReader
+from contexts.platform_connectors.infrastructure.adapters.django_account_health_checker import (
+    DjangoAccountHealthChecker,
+)
+from contexts.platform_connectors.infrastructure.adapters.django_backup_message_reader import (
+    DjangoBackupMessageReader,
+)
+from contexts.platform_connectors.infrastructure.adapters.django_connection_consent_reader import (
+    DjangoConnectionConsentReader,
 )
 
 
@@ -223,13 +338,13 @@ class ApplicationContainer:
 
     @staticmethod
     def schedule_reminder(
-        policy_provider: IReminderPolicyProvider,
+        policy_provider: IReminderPolicyProvider | None = None,
     ) -> ScheduleReminderUseCase:
         """Wire Reminder persistence while requiring policy from its owning context/config."""
         return ScheduleReminderUseCase(
             order_repository=DjangoOrderRepository(),
             reminder_repository=DjangoReminderRepository(),
-            policy_provider=policy_provider,
+            policy_provider=policy_provider or DjangoReminderPolicyProvider(),
             unit_of_work=DjangoOrderDetectionUnitOfWork(),
             outbox=DjangoOrderDetectionOutbox(),
             clock=SystemClock(),
@@ -348,6 +463,14 @@ class ApplicationContainer:
         )
 
     @staticmethod
+    def list_crm_contacts() -> ListContactsUseCase:
+        """Wire merchant-scoped CRM contact listing to CRM-owned read repositories."""
+        return ListContactsUseCase(
+            contact_repository=DjangoContactRepository(),
+            segment_repository=DjangoSegmentRepository(),
+        )
+
+    @staticmethod
     def send_bulk_message() -> SendBulkMessageUseCase:
         """Wire durable campaign creation without constructing external senders."""
         return SendBulkMessageUseCase(
@@ -401,10 +524,159 @@ class ApplicationContainer:
         )
 
     @staticmethod
-    def change_subscription_plan(usage_provider) -> ChangeSubscriptionPlanUseCase:
+    def change_subscription_plan(usage_provider=None) -> ChangeSubscriptionPlanUseCase:
         return ChangeSubscriptionPlanUseCase(
-            DjangoMerchantRepository(), usage_provider, DjangoIdentityUnitOfWork(),
+            DjangoMerchantRepository(), usage_provider or DjangoConnectionUsageReader(), DjangoIdentityUnitOfWork(),
             DjangoIdentityOutbox(), SystemIdentityClock(),
+        )
+
+    @staticmethod
+    def connect_platform() -> ConnectPlatformUseCase:
+        """Wire the mock provider and shared plan/usage ports for connection creation."""
+        return ConnectPlatformUseCase(
+            connections=DjangoPlatformConnectionRepository(),
+            gateway=MockPlatformGateway(),
+            cipher=DjangoAesTokenCipher(),
+            usage_reader=DjangoConnectionUsageReader(),
+            plan_reader=DjangoConnectionPlanReader(),
+            unit_of_work=DjangoPlatformConnectorsUnitOfWork(),
+            outbox=DjangoPlatformConnectorsOutbox(),
+            clock=SystemPlatformClock(),
+        )
+
+    @staticmethod
+    def handle_incoming_webhook() -> HandleIncomingWebhookUseCase:
+        """Wire signature validation before mapping, idempotent persistence and Outbox."""
+        return HandleIncomingWebhookUseCase(
+            connections=DjangoPlatformConnectionRepository(),
+            messages=DjangoMessageRepository(),
+            verifier=DjangoWebhookSignatureVerifier(),
+            mapper=MockWebhookPayloadMapper(),
+            unit_of_work=DjangoPlatformConnectorsUnitOfWork(),
+            outbox=DjangoPlatformConnectorsOutbox(),
+        )
+
+    @staticmethod
+    def sync_platform_messages() -> SyncMessagesUseCase:
+        """Wire one-connection sync so scheduled callers can isolate failures per connection."""
+        return SyncMessagesUseCase(
+            connections=DjangoPlatformConnectionRepository(),
+            messages=DjangoMessageRepository(),
+            gateway=MockPlatformGateway(),
+            unit_of_work=DjangoPlatformConnectorsUnitOfWork(),
+            outbox=DjangoPlatformConnectorsOutbox(),
+            clock=SystemPlatformClock(),
+        )
+
+    @staticmethod
+    def sync_active_platform_connections() -> SyncActiveConnectionsJob:
+        """Build the per-merchant job that isolates each connection's sync outcome."""
+        return SyncActiveConnectionsJob(
+            connections=DjangoPlatformConnectionRepository(),
+            sync_use_case=ApplicationContainer.sync_platform_messages(),
+        )
+
+    @staticmethod
+    def refresh_platform_tokens() -> RefreshTokensUseCase:
+        """Wire token refresh while keeping plaintext credentials inside adapters."""
+        return RefreshTokensUseCase(
+            connections=DjangoPlatformConnectionRepository(),
+            gateway=MockPlatformGateway(),
+            cipher=DjangoAesTokenCipher(),
+            unit_of_work=DjangoPlatformConnectorsUnitOfWork(),
+            outbox=DjangoPlatformConnectorsOutbox(),
+            clock=SystemPlatformClock(),
+        )
+
+    @staticmethod
+    def evaluate_message() -> EvaluateMessageUseCase:
+        """Wire configured Rule strategies and the shared merchant-country port."""
+        return EvaluateMessageUseCase(
+            rule_sets=DjangoRuleSetRepository(),
+            country_reader=DjangoMerchantCountryReader(),
+            evaluators={
+                RuleType.KEYWORD_MATCH: KeywordMatchEvaluator(),
+                RuleType.AMOUNT_PATTERN: AmountPatternEvaluator(),
+                RuleType.PAYMENT_PROOF_SIGNAL: MediaPresenceEvaluator(),
+                RuleType.EMOJI_SIGNAL: EmojiMatchEvaluator(),
+            },
+            processed_events=DjangoRulesProcessedEventRepository(),
+            unit_of_work=DjangoRulesEngineUnitOfWork(),
+            outbox=DjangoRulesEngineOutbox(),
+        )
+
+    @staticmethod
+    def update_rule_set() -> UpdateRuleSetUseCase:
+        """Wire RuleSet configuration to its repository and context transaction."""
+        return UpdateRuleSetUseCase(
+            rule_sets=DjangoRuleSetRepository(),
+            unit_of_work=DjangoRulesEngineUnitOfWork(),
+        )
+
+    @staticmethod
+    def adjust_rule_weight_from_correction() -> AdjustRuleWeightFromCorrectionUseCase:
+        """Wire merchant-only rule feedback with event idempotency protection."""
+        return AdjustRuleWeightFromCorrectionUseCase(
+            rule_sets=DjangoRuleSetRepository(),
+            processed_events=DjangoRulesProcessedEventRepository(),
+            unit_of_work=DjangoRulesEngineUnitOfWork(),
+        )
+
+    @staticmethod
+    def create_backup_snapshot() -> CreateSnapshotUseCase:
+        """Wire snapshot creation to the shared consent and owner-context data ports."""
+        return CreateSnapshotUseCase(
+            backups=DjangoBackupRepository(),
+            storage=DjangoObjectStorage(),
+            consent_reader=DjangoConnectionConsentReader(),
+            message_reader=DjangoBackupMessageReader(),
+            contact_reader=DjangoBackupContactReader(),
+            unit_of_work=DjangoBackupUnitOfWork(),
+            outbox=DjangoBackupOutbox(),
+            clock=SystemBackupClock(),
+        )
+
+    @staticmethod
+    def list_backups() -> ListBackupsUseCase:
+        """Wire merchant-scoped snapshot listing to Backup persistence."""
+        return ListBackupsUseCase(DjangoBackupRepository())
+
+    @staticmethod
+    def restore_from_snapshot() -> RestoreFromSnapshotUseCase:
+        """Wire snapshot export and configured signed URL lifetime."""
+        return RestoreFromSnapshotUseCase(
+            backups=DjangoBackupRepository(),
+            storage=DjangoObjectStorage(),
+            unit_of_work=DjangoBackupUnitOfWork(),
+            clock=SystemBackupClock(),
+            export_ttl_minutes=settings.BACKUP_EXPORT_TTL_MINUTES,
+        )
+
+    @staticmethod
+    def get_backup_export() -> GetBackupExportUseCase:
+        """Wire export polling to merchant-scoped Backup persistence."""
+        return GetBackupExportUseCase(DjangoBackupRepository())
+
+    @staticmethod
+    def check_account_health() -> CheckAccountHealthUseCase:
+        """Wire scheduled health checks through the shared Platform Connectors port."""
+        return CheckAccountHealthUseCase(
+            health_checker=DjangoAccountHealthChecker(),
+            unit_of_work=DjangoBackupUnitOfWork(),
+            outbox=DjangoBackupOutbox(),
+            clock=SystemBackupClock(),
+        )
+
+    @staticmethod
+    def delete_all_merchant_data() -> DeleteAllMerchantDataUseCase:
+        """Wire irreversible merchant purge behind the configured confirmation verifier."""
+        return DeleteAllMerchantDataUseCase(
+            backups=DjangoBackupRepository(),
+            storage=DjangoObjectStorage(),
+            token_verifier=DjangoConfirmationTokenVerifier(),
+            unit_of_work=DjangoBackupUnitOfWork(),
+            outbox=DjangoBackupOutbox(),
+            clock=SystemBackupClock(),
         )
 
     @staticmethod

@@ -3,6 +3,35 @@
 Ce fichier conserve les decisions, documents consultes, fichiers crees ou modifies et prochaines etapes afin de faciliter la reprise du projet.
 Mettre a jour ce journal a chaque etape importante.
 
+## 2026-10-17 - Reprise des contrats API et contextes
+
+- CRM — `ListContactsUseCase` : terminé; contrat ajouté à 15, route `GET /contacts` (`contact.read`), tests pagination/scope.
+- CRM — `CreateSegmentUseCase` : terminé; route `POST /segments` (`segment.create`).
+- CRM — `GetSegmentMembersUseCase` : terminé; route paginée `GET /segments/{id}/members` (`contact.read`) et vérification merchant.
+- CRM — `SendBulkMessageUseCase` : terminé; route `POST /segments/{id}/bulk-message` (`segment.bulk_message`) et vérification merchant.
+- CRM — `MergeContactsUseCase` : terminé; route `POST /contacts/merge` (`contact.merge`), réponse 202.
+- Order Detection — `GetDormantMoneyDashboardUseCase` : terminé; route `GET /dashboard/dormant-money` (`order.read`), totaux par devise.
+- Order Detection — `UpdateOrderStatusUseCase` : terminé; route `PATCH /orders/{id}/status` (`order.update_status`), scope merchant revalidé.
+- Order Detection — `ScheduleReminderUseCase` : terminé; route `POST /orders/{id}/reminders` (`order.remind`), délais configurables.
+- Order Detection — `ListPendingDetectionCandidatesUseCase` : terminé; route `GET /detection-candidates` (`order.review`).
+- Order Detection — `ValidateOrRejectDetectionUseCase` : terminé; route `POST /detection-candidates/{id}/decision` (`order.review`).
+- Platform Connectors — `ConnectPlatformUseCase` : terminé avec gateway mock, AES-256-GCM et limite de plan; route `platform.connect`.
+- Platform Connectors — `SyncMessagesUseCase` : terminé; job multi-connexion isole les erreurs (INV-PC-04), idempotence DB (INV-PC-03).
+- Platform Connectors — `HandleIncomingWebhookUseCase` : terminé; webhooks publics HMAC avant parsing (INV-PC-02), idempotence par contrainte DB.
+- Platform Connectors — `RefreshTokensUseCase` : terminé; token chiffré ou connexion expirée avec événement Outbox.
+- Rules Engine — `EvaluateMessageUseCase` : terminé; consommateur idempotent, priorité merchant > pays > global, données de langue/devise/motifs configurables (INV-RE-01/02/04).
+- Rules Engine — `UpdateRuleSetUseCase` : terminé; route `PUT /rule-sets/{scope}` (`rule_config.edit`), scopes global/pays exigent permission globale.
+- Rules Engine — `AdjustRuleWeightFromCorrectionUseCase` : terminé; consommateur idempotent et ajustement borné à ±10 (INV-RE-03).
+- Backup — `ListBackupsUseCase` : terminé; route `GET /backups` (`backup.read`).
+- Backup — `GetBackupExportUseCase` : terminé; route `GET /backups/exports/{id}` (`backup.read`).
+- Backup — `CreateSnapshotUseCase` : terminé; job incrémental, hash et consentement obligatoire (INV-BK-01/02/03).
+- Backup — `RestoreFromSnapshotUseCase` : terminé; route `POST /backups/{id}/restore` (`backup.restore`), exports JSON/CSV et URL signée.
+- Backup — `CheckAccountHealthUseCase` : terminé; job sans route, alertes via Outbox.
+- Backup — `DeleteAllMerchantDataUseCase` : terminé; route `DELETE /merchants/{id}/data` (`merchant.delete_data`) avec jeton de double confirmation (INV-BK-04).
+- Shared Kernel — `IConnectionUsageReader` : terminé; implémenté dans Platform Connectors et injecté à Identity pour INV-ID-03.
+- Shared Kernel — ports de pays, consentement, données de sauvegarde et santé : terminés, sans import inter-contextes.
+- Validation de cette reprise : 115 tests Django, 4 tests d'architecture; `makemigrations --check --dry-run` sans changement.
+
 ## 2026-10-17 - Identity, Access Control et politiques de routes
 
 - Identity — `RegisterUserUseCase` : terminé, tests unitaires et parcours HTTP.

@@ -26,6 +26,16 @@ class PermissionMiddleware:
 			permission=permission,
 			scope=request.merchant_id,
 		))
+		global_scope_param = getattr(view_func, "global_scope_param", None)
+		if allowed and global_scope_param is not None:
+			scope_name = getattr(request, "resolver_match", None)
+			scope_name = getattr(scope_name, "kwargs", {}).get(global_scope_param)
+			if scope_name != "merchant":
+				allowed = bool(checker.can(
+					user_id=request.user.id,
+					permission=permission,
+					scope="global",
+				))
 		if not allowed:
 			emit_audit(request, "denied", permission)
 			return JsonResponse(

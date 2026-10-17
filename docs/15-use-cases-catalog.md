@@ -84,7 +84,7 @@
 ## Contexte : Platform Connectors
 
 ### `ConnectPlatformUseCase`
-- **Entrée** : `{ merchantId: uuid, platformType: "whatsapp"|"instagram"|"facebook", oauthCode: string }`
+- **Entrée** : `{ merchantId: uuid, platformType: "whatsapp"|"instagram"|"facebook", oauthCode: string, externalAccountId?: string, consentGiven?: boolean }`
 - **Sortie** : `{ platformConnectionId: uuid, connectionStatus: "active" }`
 - **Préconditions** : `merchantId` n'a pas atteint la limite de connexions de son plan (voir `16-business-invariants-and-rules.md` §Plan Limits)
 - **Postconditions** : `accessToken` échangé, chiffré, persisté
@@ -116,7 +116,7 @@
 ## Contexte : Rules Engine
 
 ### `EvaluateMessageUseCase`
-- **Entrée** : `{ merchantId: uuid, messageId: uuid, textContent: string, hasMedia: boolean, conversationContext: Message[] (fenêtre récente) }`
+- **Entrée** : `{ eventId: uuid, merchantId: uuid, messageId: uuid, textContent: string, hasMedia: boolean, conversationContext: Message[] (fenêtre récente) }`
 - **Sortie** : `{ confidenceScore: number(0-100), matchedRuleIds: uuid[], extractedData: { amount?: Money, currency?: string, intent?: string } }`
 - **Préconditions** : un `RuleSet` résolu (fusion global < pays < merchant)
 - **Événements publiés** : `MessageEvaluated`
@@ -129,13 +129,23 @@
 
 ### `AdjustRuleWeightFromCorrectionUseCase`
 - **Déclencheur** : événement `DetectionCorrectedByMerchant`
-- **Entrée** : `{ merchantId: uuid, ruleId: uuid, wasCorrect: boolean }`
+- **Entrée** : `{ eventId: uuid, merchantId: uuid, ruleId: uuid, wasCorrect: boolean }`
 - **Sortie** : `{ newWeight: number }`
 - **Postconditions** : ajustement borné (jamais plus de ±10 points par correction, pour éviter l'instabilité — voir invariants)
 
 ---
 
 ## Contexte : Backup
+
+### `ListBackupsUseCase`
+- **Mode d'entrée** : route protégée par `backup.read`
+- **Entrée** : `{ merchantId: uuid, platformConnectionId?: uuid, page?: number, pageSize?: number }`
+- **Sortie** : `{ snapshots: BackupSnapshotSummary[], totalCount: number }`
+
+### `GetBackupExportUseCase`
+- **Mode d'entrée** : route protégée par `backup.read`
+- **Entrée** : `{ merchantId: uuid, exportJobId: uuid }`
+- **Sortie** : `{ status: "processing"|"ready"|"failed", downloadUrl?: string, expiresAt?: datetime }`
 
 ### `CreateSnapshotUseCase`
 - **Déclencheur** : job planifié (fréquence selon plan)
@@ -210,6 +220,12 @@
 ---
 
 ## Contexte : CRM
+
+### `ListContactsUseCase`
+- **Mode d'entrée** : route protégée par `contact.read`
+- **Entrée** : `{ merchantId: uuid, segmentId?: uuid, page?: number, pageSize?: number }`
+- **Sortie** : `{ contacts: ContactSummary[], totalCount: number }`
+- **Postconditions** : les résultats sont limités au merchant issu du tenant context; si `segmentId` est fourni, seuls les contacts membres du segment sont retournés.
 
 ### `UpdateContactFromMessageUseCase`
 - **Déclencheur** : événement `MessageReceived`

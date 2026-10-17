@@ -64,6 +64,17 @@ class MiddlewareChainTests(unittest.TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(json.loads(response.content)["errorCode"], "TENANT_REQUIRED")
 
+    def test_tenant_route_parameter_cannot_override_authenticated_scope(self):
+        middleware = TenantIsolationMiddleware(lambda request: None)
+        view = lambda request, merchant_id: None
+
+        response = middleware.process_view(
+            self.request, view, (), {"merchant_id": "different-merchant"}
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(json.loads(response.content)["errorCode"], "TENANT_REQUIRED")
+
     def test_permission_is_delegated_and_fails_closed(self):
         class Checker:
             def __init__(self, allowed):
@@ -84,6 +95,27 @@ class MiddlewareChainTests(unittest.TestCase):
         with override_settings(PIEDLENS_PERMISSION_CHECKER=None):
             response = middleware.process_view(self.request, view, (), {})
         self.assertEqual(response.status_code, 403)
+
+    def test_rule_scope_requires_global_assignment_for_global_and_country_rules(self):
+        class ScopeChecker:
+            def __init__(self):
+                self.scopes = []
+
+            def can(self, **kwargs):
+                self.scopes.append(kwargs["scope"])
+                return kwargs["scope"] != "global"
+
+        view = requires_permission("rule_config.edit", global_scope_param="scope")(
+            lambda request: None
+        )
+        self.request.resolver_match = SimpleNamespace(kwargs={"scope": "country:CI"})
+        checker = ScopeChecker()
+        middleware = PermissionMiddleware(lambda request: None)
+        with override_settings(PIEDLENS_PERMISSION_CHECKER=checker):
+            response = middleware.process_view(self.request, view, (), {})
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(checker.scopes, ["merchant-1", "global"])
 
     def test_unmarked_route_is_denied_and_public_route_is_explicit(self):
         middleware = PermissionMiddleware(lambda request: None)

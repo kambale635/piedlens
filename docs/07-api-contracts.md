@@ -10,7 +10,7 @@ Convention : REST, JSON, versionné dès le départ (`/api/v1/...`). Chaque endp
 Connecter un nouveau compte plateforme.
 ```json
 // Requête
-{ "platformType": "whatsapp", "externalAccountId": "string", "oauthCode": "string" }
+{ "platformType": "whatsapp", "externalAccountId": "string", "oauthCode": "string", "consentGiven": true }
 // Réponse 201
 { "id": "uuid", "platformType": "whatsapp", "connectionStatus": "active" }
 ```
@@ -36,6 +36,9 @@ Déclenche un export de restauration.
 ```json
 { "status": "ready", "downloadUrl": "https://..." }
 ```
+
+### `GET /api/v1/backups/objects/{reference}`
+Téléchargement via URL signée temporaire; signature HMAC et expiration obligatoires.
 
 ---
 
@@ -113,3 +116,38 @@ Chaque erreur 4xx/5xx retourne un corps standard :
 - `PUT /api/v1/roles/{id}/permissions` (`role.update`) : `{ permissions[] }` → 200
 - `POST /api/v1/role-assignments` (`role.assign`) : `{ userId, roleId, scope }` → 201 `{ roleAssignmentId }`
 - `DELETE /api/v1/role-assignments/{id}` (`role.revoke`) → 200 `{ revokedAt }`
+
+## Compléments : routes ajoutées après coup et permission de chaque route
+
+### Routes ajoutées
+
+- `GET /api/v1/detection-candidates` : candidats en attente (`ListPendingDetectionCandidatesUseCase`)
+- `POST /api/v1/detection-candidates/{id}/decision` : `{ decision: "validate"|"reject" }` → 200 (`ValidateOrRejectDetectionUseCase`)
+- `GET /api/v1/segments/{id}/members` : membres d'un segment, paginé (`GetSegmentMembersUseCase`)
+- `POST /api/v1/contacts/merge` : `{ primaryContactId, duplicateContactId }` → 202 `{ primaryContactId, mergedContactId, status: "merge_in_progress" }`
+- `PUT /api/v1/rule-sets/{scope}` : `{ rules[] }` → 200 `{ ruleSetId, version }` (`UpdateRuleSetUseCase`)
+- `DELETE /api/v1/merchants/{id}/data` : `{ confirmationToken }` → 200 `{ deletedAt }` (`DeleteAllMerchantDataUseCase`)
+
+### Permission par route
+
+Le `merchantId` vient toujours du `TenantIsolationMiddleware`.
+
+| Route | Permission / politique |
+|---|---|
+| `POST /api/v1/platform-connections` | `platform.connect` |
+| `GET /api/v1/backups`, `GET /api/v1/backups/exports/{id}` | `backup.read` |
+| `POST /api/v1/backups/{id}/restore` | `backup.restore` |
+| `GET /api/v1/backups/objects/{reference}` | `@public_route` avec signature HMAC temporaire obligatoire |
+| `DELETE /api/v1/merchants/{id}/data` | `merchant.delete_data` |
+| `GET /api/v1/dashboard/dormant-money` | `order.read` |
+| `PATCH /api/v1/orders/{id}/status` | `order.update_status` |
+| `POST /api/v1/orders/{id}/reminders` | `order.remind` |
+| `GET /api/v1/detection-candidates`, `POST /api/v1/detection-candidates/{id}/decision` | `order.review` |
+| `GET /api/v1/contacts`, `GET /api/v1/segments/{id}/members` | `contact.read` |
+| `POST /api/v1/contacts/merge` | `contact.merge` |
+| `POST /api/v1/segments` | `segment.create` |
+| `POST /api/v1/segments/{id}/bulk-message` | `segment.bulk_message` |
+| `PUT /api/v1/rule-sets/{scope}` | `rule_config.edit` ; les scopes global et pays exigent une assignation de rôle globale |
+| `POST /api/v1/webhooks/whatsapp`, `POST /api/v1/webhooks/instagram` | `@public_route` avec vérification de signature obligatoire (INV-PC-02) |
+
+Les use cases déclenchés par événement ou job (synchronisation, évaluation, snapshots, relances planifiées, anomalies) n'ont pas de route.

@@ -1,10 +1,12 @@
 # Catalogue des permissions
 
-Ce catalogue est dérivé des chaînes de permission effectivement déclarées avec `@requires_permission` dans les routes de l'application.
+Catalogue extrait des vues enregistrées dans le resolver Django, via leur attribut `required_permission` posé par `@requires_permission`.
 
 | Permission | Contexte | Routes protégées |
 |---|---|---|
+| `role.create` | Access Control | `POST /api/v1/roles` |
+| `role.update` | Access Control | `PUT /api/v1/roles/{role_id}/permissions` |
+| `role.assign` | Access Control | `POST /api/v1/role-assignments` |
+| `role.revoke` | Access Control | `DELETE /api/v1/role-assignments/{role_assignment_id}` |
 
-Aucune permission applicative n'est actuellement déclarée: le dépôt ne contient pas encore de routes de présentation/API. Les futures routes métier doivent déclarer leur permission avec `@requires_permission("<permission>" )`; `PermissionMiddleware` refuse par défaut toute route non publique sans permission explicite ou sans `IPermissionChecker` configuré.
-
-Mettre ce catalogue à jour dans le même changement que chaque route protégée. Ne pas ajouter de permission sans usage réel.
+Les routes publiques Identity et `POST /api/v1/merchants` ont une politique publique explicite; elles n'ajoutent pas de permission. Aucun Use Case CRM ou Order Detection n'a de route déclarée dans `07-api-contracts.md`, donc aucun droit de ces contextes n'est inventé ici. Toute route non marquée `@requires_permission` ou `@public_route` est refusée par défaut.

@@ -59,3 +59,7 @@ Chaque plateforme a son propre format de données (JSON WhatsApp ≠ JSON Instag
 - Tests d'intégration avec les vrais formats de payload de chaque plateforme (fixtures JSON réelles, anonymisées)
 - Test spécifique d'idempotence (même webhook reçu 2 fois → un seul `Message` créé)
 - Test du mapper ACL isolément (garantit que la traduction reste correcte si le connecteur évolue)
+
+## Port exposé via le shared_kernel (usage des plans)
+
+`ChangeSubscriptionPlanUseCase` (Identity) doit connaître le nombre de connexions actives d'un merchant (INV-ID-03). Identity n'a pas le droit d'importer Platform Connectors : le contrat `IConnectionUsageReader.count_active_connections(merchantId)` est défini dans `shared_kernel/ports`, implémenté par l'infrastructure de Platform Connectors et injecté dans Identity à la composition. Les deux contextes dépendent du shared_kernel, jamais l'un de l'autre.

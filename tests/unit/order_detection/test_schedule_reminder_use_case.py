@@ -2,16 +2,16 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
-from contexts.order_detection.application.events import ReminderScheduled
-from contexts.order_detection.application.reminder_exceptions import (
+from contexts.order_detection.domain.events.order_detection_events import ReminderScheduled
+from contexts.order_detection.application.exceptions.reminder_exceptions import (
     ReminderAlreadyScheduledException,
 )
-from contexts.order_detection.application.schedule_reminder_use_case import (
+from contexts.order_detection.application.use_cases.schedule_reminder_use_case import (
     ScheduleReminderUseCase,
 )
-from contexts.order_detection.domain.order import Order
-from contexts.order_detection.domain.order_status import OrderStatus
-from contexts.order_detection.domain.reminder import ReminderType
+from contexts.order_detection.domain.entities.order import Order
+from contexts.order_detection.domain.value_objects.order_status import OrderStatus
+from contexts.order_detection.domain.entities.reminder import ReminderType
 from shared_kernel.application_exceptions import ResourceNotFoundException, ValidationException
 from shared_kernel.value_objects.confidence_score import ConfidenceScore
 from shared_kernel.value_objects.money import Money

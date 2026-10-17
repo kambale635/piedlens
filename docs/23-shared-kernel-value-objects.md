@@ -8,7 +8,7 @@ Certains concepts (argent, téléphone, email, identifiants) apparaissent dans p
 ## Emplacement dans l'arborescence
 
 ```
-/src/shared-kernel/
+/src/shared_kernel/
   /value-objects
     Money.py
     PhoneNumber.py

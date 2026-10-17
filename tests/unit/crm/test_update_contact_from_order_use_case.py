@@ -2,11 +2,11 @@ import unittest
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from contexts.crm.application.update_contact_from_order_use_case import (
+from contexts.crm.application.use_cases.update_contact_from_order_use_case import (
     UpdateContactFromOrderUseCase,
 )
-from contexts.crm.domain.contact import Contact
-from contexts.crm.domain.loyalty_score import LoyaltyScore
+from contexts.crm.domain.entities.contact import Contact
+from contexts.crm.domain.value_objects.loyalty_score import LoyaltyScore
 from shared_kernel.application_exceptions import ResourceNotFoundException
 from shared_kernel.value_objects.money import Money
 
@@ -38,9 +38,14 @@ class FixedLoyaltyCalculator:
     def __init__(self):
         self.calculated = []
 
-    def calculate(self, contact):
-        self.calculated.append(contact)
+    def calculate(self, contact, primary_currency):
+        self.calculated.append((contact, primary_currency))
         return LoyaltyScore(min(contact.order_count * 10, 100))
+
+
+class MerchantDefaults:
+    def primary_currency(self, merchant_id):
+        return "XOF"
 
 
 class InMemoryProcessedMessages:
@@ -83,6 +88,7 @@ class UpdateContactFromOrderUseCaseTests(unittest.TestCase):
         self.use_case = UpdateContactFromOrderUseCase(
             contact_repository=self.repository,
             loyalty_score_calculator=self.loyalty_calculator,
+            defaults_provider=MerchantDefaults(),
             processed_messages=self.processed,
             unit_of_work=self.unit_of_work,
         )
@@ -114,6 +120,7 @@ class UpdateContactFromOrderUseCaseTests(unittest.TestCase):
         self.assertEqual(second_result.order_count, 2)
         self.assertEqual(second_result.loyalty_score, 20)
         self.assertEqual(len(self.repository.saved), 2)
+        self.assertEqual([currency for _, currency in self.loyalty_calculator.calculated], ["XOF", "XOF"])
 
     def test_non_delivered_order_event_is_processed_without_contact_mutation(self):
         event_id = uuid4()

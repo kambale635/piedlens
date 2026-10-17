@@ -2,15 +2,15 @@ import unittest
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from contexts.order_detection.application.create_order_from_promoted_detection_use_case import (
+from contexts.order_detection.application.use_cases.create_order_from_promoted_detection_use_case import (
     CreateOrderFromPromotedDetectionUseCase,
 )
-from contexts.order_detection.application.events import (
+from contexts.order_detection.domain.events.order_detection_events import (
     DetectionCandidatePromoted,
     OrderDetected,
 )
-from contexts.order_detection.domain.order import Order
-from contexts.order_detection.domain.order_status import OrderStatus
+from contexts.order_detection.domain.entities.order import Order
+from contexts.order_detection.domain.value_objects.order_status import OrderStatus
 from shared_kernel.value_objects.confidence_score import ConfidenceScore
 from shared_kernel.value_objects.money import Money
 
@@ -47,11 +47,28 @@ class InMemoryProcessedEventRepository:
         self.marked.append((event_id, consumer_name))
 
 
+class InMemoryContactRedirects:
+    def __init__(self):
+        self.redirects = {}
+
+    def register(self, merchant_id, merged_contact_id, primary_contact_id):
+        self.redirects[merged_contact_id] = (merchant_id, primary_contact_id)
+
+    def resolve(self, merchant_id, contact_id):
+        while contact_id in self.redirects:
+            redirect_merchant_id, primary_contact_id = self.redirects[contact_id]
+            if redirect_merchant_id != merchant_id:
+                break
+            contact_id = primary_contact_id
+        return contact_id
+
+
 class InMemoryUnitOfWork:
     def __init__(self):
         self.entered = 0
         self.exited = 0
         self.locked_candidate_ids = []
+        self.locked_contact_ids = []
 
     def __enter__(self):
         self.entered += 1
@@ -63,6 +80,9 @@ class InMemoryUnitOfWork:
 
     def lock_candidate_creation(self, candidate_id):
         self.locked_candidate_ids.append(candidate_id)
+
+    def lock_detection_contact(self, contact_id):
+        self.locked_contact_ids.append(contact_id)
 
 
 class InMemoryOutbox:
@@ -89,11 +109,13 @@ class CreateOrderFromPromotedDetectionUseCaseTests(unittest.TestCase):
         )
         self.order_repository = InMemoryOrderRepository()
         self.processed_events = InMemoryProcessedEventRepository()
+        self.contact_redirects = InMemoryContactRedirects()
         self.unit_of_work = InMemoryUnitOfWork()
         self.outbox = InMemoryOutbox()
         self.use_case = CreateOrderFromPromotedDetectionUseCase(
             order_repository=self.order_repository,
             processed_events=self.processed_events,
+            contact_redirects=self.contact_redirects,
             unit_of_work=self.unit_of_work,
             outbox=self.outbox,
         )
@@ -114,6 +136,19 @@ class CreateOrderFromPromotedDetectionUseCaseTests(unittest.TestCase):
         )
         self.assertEqual(self.unit_of_work.entered, self.unit_of_work.exited)
         self.assertEqual(self.unit_of_work.locked_candidate_ids, [self.candidate_id])
+
+    def test_late_promotion_uses_primary_contact_after_merge_redirect(self):
+        primary_contact_id = uuid4()
+        self.contact_redirects.register(
+            self.event.merchant_id,
+            self.event.contact_id,
+            primary_contact_id,
+        )
+
+        self.use_case.execute(self.event)
+
+        self.assertEqual(self.order_repository.saved[0].contact_id, primary_contact_id)
+        self.assertIn(primary_contact_id, self.unit_of_work.locked_contact_ids)
 
     def test_redelivery_of_same_event_does_not_duplicate_order_or_outbox(self):
         first_result = self.use_case.execute(self.event)

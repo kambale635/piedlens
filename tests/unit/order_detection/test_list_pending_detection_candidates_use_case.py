@@ -2,11 +2,11 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
-from contexts.order_detection.application.list_pending_detection_candidates_use_case import (
+from contexts.order_detection.application.use_cases.list_pending_detection_candidates_use_case import (
     ListPendingDetectionCandidatesUseCase,
 )
-from contexts.order_detection.domain.detection_candidate import DetectionCandidate
-from contexts.order_detection.domain.exceptions import DetectionCandidateAlreadyReviewedException
+from contexts.order_detection.domain.entities.detection_candidate import DetectionCandidate
+from contexts.order_detection.domain.exceptions.order_detection_exceptions import DetectionCandidateAlreadyReviewedException
 from shared_kernel.application_exceptions import ValidationException
 from shared_kernel.value_objects.confidence_score import ConfidenceScore
 from shared_kernel.value_objects.money import Money

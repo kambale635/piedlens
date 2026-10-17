@@ -4,9 +4,9 @@ from uuid import UUID, uuid4
 
 from django.test import TransactionTestCase
 
-from contexts.crm.infrastructure.django_crm_outbox import DjangoCRMOutbox
-from contexts.crm.infrastructure.django_unit_of_work import DjangoCRMUnitOfWork
-from contexts.crm.infrastructure.models import ContactRecord, OutboxEventRecord
+from contexts.crm.infrastructure.messaging.django_crm_outbox import DjangoCRMOutbox
+from contexts.crm.infrastructure.persistence.django_unit_of_work import DjangoCRMUnitOfWork
+from contexts.crm.infrastructure.persistence.models import ContactRecord, OutboxEventRecord
 
 
 @dataclass(frozen=True)

@@ -4,9 +4,53 @@
 
 Une erreur fréquente est d'organiser par couche technique en premier (`/controllers`, `/services`, `/repositories` à la racine, mélangeant tous les contextes). On organise **d'abord par contexte métier**, puis par couche à l'intérieur — ça respecte la frontière DDD et rend chaque contexte potentiellement extractible en service séparé plus tard.
 
+## Structure cible détaillée
+
+Pour le dépôt Python/Django, les concepts du schéma historique ci-dessous sont matérialisés avec des modules Python et des noms `snake_case`. Chaque contexte suit cette structure, en ne créant que les sous-dossiers utilisés :
+
+```text
+/src
+  /shared_kernel
+    /domain
+    /application
+    /infrastructure
+  /middleware
+  /contexts
+    /identity
+    /access_control
+    /platform_connectors
+    /rules_engine
+    /backup
+    /order_detection
+    /crm
+      /domain
+        /entities
+        /value_objects
+        /events
+        /services
+        /repositories
+        /exceptions
+      /application
+        /use_cases
+        /dto
+        /ports
+      /infrastructure
+        /persistence
+        /messaging
+        /adapters
+      /presentation
+        /api
+        /consumers
+        /jobs
+```
+
+Les mêmes couches et sous-couches s'appliquent aux sept contextes. Les modèles Django résident sous `infrastructure/persistence`; les implémentations d'Outbox et de marqueurs d'événements sous `infrastructure/messaging`; les vues et serializers sous `presentation/api`; les workers consommateurs sous `presentation/consumers`; et les tâches planifiées sous `presentation/jobs`. Les contrats de repository sont dans `domain/repositories`, tandis que les ports techniques applicatifs sont dans `application/ports`.
+
+`/shared_kernel` et `/middleware` sont transverses et ne constituent pas des bounded contexts. Aucun contexte ne peut importer directement un autre contexte.
+
 ```
 /src
-  /shared-kernel
+  /shared_kernel
     /rules-engine
       /domain
         RuleSet.ts

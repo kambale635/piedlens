@@ -2,20 +2,20 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
-from contexts.order_detection.application.detect_order_use_case import DetectOrderUseCase
-from contexts.order_detection.application.detection_configuration import DetectionConfiguration
-from contexts.order_detection.application.events import (
+from contexts.order_detection.application.use_cases.detect_order_use_case import DetectOrderUseCase
+from contexts.order_detection.application.ports.detection_configuration import DetectionConfiguration
+from contexts.order_detection.domain.events.order_detection_events import (
     DetectionCandidateCreated,
     OrderDetected,
 )
-from contexts.order_detection.application.evaluation_result import EvaluationResult
-from contexts.order_detection.domain.detection_candidate import DetectionCandidate
-from contexts.order_detection.domain.exceptions import (
+from contexts.order_detection.application.dto.evaluation_result import EvaluationResult
+from contexts.order_detection.domain.entities.detection_candidate import DetectionCandidate
+from contexts.order_detection.domain.exceptions.order_detection_exceptions import (
     DetectionCandidateAlreadyReviewedException,
     InvalidOrderTransitionException,
 )
-from contexts.order_detection.domain.order import Order
-from contexts.order_detection.domain.order_status import OrderStatus
+from contexts.order_detection.domain.entities.order import Order
+from contexts.order_detection.domain.value_objects.order_status import OrderStatus
 from shared_kernel.value_objects.confidence_score import ConfidenceScore
 from shared_kernel.value_objects.money import Money
 
@@ -33,6 +33,9 @@ class InMemoryOrderRepository:
         self.last_window_days = within_days
         return [order for order in self.orders if order.contact_id == contact_id]
 
+    def find_for_update_by_id(self, order_id):
+        return next((order for order in self.orders if order.id == order_id), None)
+
 
 class InMemoryCandidateRepository:
     def __init__(self):
@@ -42,6 +45,33 @@ class InMemoryCandidateRepository:
         self.saved.append(candidate)
 
 
+class InMemoryProcessedEvents:
+    def __init__(self):
+        self.processed = set()
+
+    def has_processed(self, event_id, consumer_name):
+        return (event_id, consumer_name) in self.processed
+
+    def mark_processed(self, event_id, consumer_name):
+        self.processed.add((event_id, consumer_name))
+
+
+class InMemoryContactRedirects:
+    def __init__(self):
+        self.redirects = {}
+
+    def register(self, merchant_id, merged_contact_id, primary_contact_id):
+        self.redirects[merged_contact_id] = (merchant_id, primary_contact_id)
+
+    def resolve(self, merchant_id, contact_id):
+        while contact_id in self.redirects:
+            redirect_merchant_id, primary_contact_id = self.redirects[contact_id]
+            if redirect_merchant_id != merchant_id:
+                break
+            contact_id = primary_contact_id
+        return contact_id
+
+
 class FixedConfiguration:
     def for_merchant(self, merchant_id):
         return DetectionConfiguration(confidence_threshold=70, correlation_window_days=3)
@@ -49,16 +79,20 @@ class FixedConfiguration:
 
 class InMemoryUnitOfWork:
     def __init__(self):
-        self.entered = False
-        self.exited = False
+        self.entered = 0
+        self.exited = 0
+        self.locked_contacts = []
 
     def __enter__(self):
-        self.entered = True
+        self.entered += 1
         return self
 
     def __exit__(self, exception_type, exception, traceback):
-        self.exited = True
+        self.exited += 1
         return False
+
+    def lock_detection_contact(self, contact_id):
+        self.locked_contacts.append(contact_id)
 
 
 class InMemoryOutbox:
@@ -107,22 +141,35 @@ class DetectOrderUseCaseTests(unittest.TestCase):
     def setUp(self):
         self.merchant_id = uuid4()
         self.contact_id = uuid4()
+        self.event_id = uuid4()
         self.source_message_id = uuid4()
         self.order_repository = InMemoryOrderRepository()
         self.candidate_repository = InMemoryCandidateRepository()
         self.unit_of_work = InMemoryUnitOfWork()
         self.outbox = InMemoryOutbox()
+        self.processed_events = InMemoryProcessedEvents()
+        self.contact_redirects = InMemoryContactRedirects()
         self.use_case = DetectOrderUseCase(
             order_repository=self.order_repository,
             candidate_repository=self.candidate_repository,
             configuration=FixedConfiguration(),
             unit_of_work=self.unit_of_work,
             outbox=self.outbox,
+            processed_events=self.processed_events,
+            contact_redirects=self.contact_redirects,
         )
 
-    def execute(self, score, amount=None, intent="purchase", timestamp=None):
+    def execute(
+        self,
+        score,
+        amount=None,
+        intent="purchase",
+        timestamp=None,
+        event_id=None,
+    ):
         return self.use_case.execute(
             merchant_id=self.merchant_id,
+            event_id=event_id or self.event_id,
             contact_id=self.contact_id,
             evaluation_result=EvaluationResult(
                 confidence_score=ConfidenceScore(score),
@@ -141,8 +188,12 @@ class DetectOrderUseCaseTests(unittest.TestCase):
         self.assertIsInstance(self.candidate_repository.saved[0], DetectionCandidate)
         self.assertEqual(self.order_repository.saved, [])
         self.assertIsInstance(self.outbox.events[0], DetectionCandidateCreated)
-        self.assertTrue(self.unit_of_work.entered)
-        self.assertTrue(self.unit_of_work.exited)
+        self.assertGreater(self.unit_of_work.entered, 0)
+        self.assertEqual(self.unit_of_work.entered, self.unit_of_work.exited)
+        self.assertIn(
+            (self.event_id, self.use_case.CONSUMER_NAME),
+            self.processed_events.processed,
+        )
 
     def test_threshold_score_creates_order_and_outbox_event(self):
         result = self.execute(70, Money("125.00", "USD"))
@@ -152,6 +203,41 @@ class DetectOrderUseCaseTests(unittest.TestCase):
         self.assertEqual(len(self.order_repository.saved), 1)
         self.assertIsInstance(self.outbox.events[0], OrderDetected)
         self.assertEqual(self.candidate_repository.saved, [])
+
+    def test_same_event_redelivery_does_not_duplicate_order_or_candidate(self):
+        candidate_result = self.execute(69, Money("125.00", "USD"))
+        candidate_replay = self.execute(69, Money("125.00", "USD"))
+        self.assertEqual(candidate_result.outcome, "candidate_created")
+        self.assertEqual(candidate_replay.outcome, "already_processed")
+        self.assertEqual(len(self.candidate_repository.saved), 1)
+
+        self.event_id = uuid4()
+        order_result = self.execute(90, Money("250.00", "USD"))
+        order_replay = self.execute(90, Money("250.00", "USD"))
+        self.assertEqual(order_result.outcome, "order_created")
+        self.assertEqual(order_replay.outcome, "already_processed")
+        self.assertEqual(len(self.order_repository.saved), 1)
+        self.assertEqual(len(self.outbox.events), 2)
+
+    def test_contact_detection_lock_is_taken_for_orders_and_candidates(self):
+        self.execute(69, Money("125.00", "USD"))
+        self.event_id = uuid4()
+        self.execute(90, Money("250.00", "USD"))
+
+        self.assertEqual(self.unit_of_work.locked_contacts, [self.contact_id, self.contact_id])
+
+    def test_new_detection_uses_primary_contact_after_merge_redirect(self):
+        primary_contact_id = uuid4()
+        self.contact_redirects.register(
+            self.merchant_id,
+            self.contact_id,
+            primary_contact_id,
+        )
+
+        self.execute(90, Money("250.00", "USD"))
+
+        self.assertEqual(self.order_repository.saved[0].contact_id, primary_contact_id)
+        self.assertIn(primary_contact_id, self.unit_of_work.locked_contacts)
 
     def test_does_not_replace_newer_amount_when_old_message_is_processed_late(self):
         newer_timestamp = datetime.now(timezone.utc)
@@ -196,7 +282,7 @@ class DetectOrderUseCaseTests(unittest.TestCase):
 
     def test_ignores_non_purchase_or_missing_amount(self):
         non_purchase = self.execute(95, Money("125.00", "USD"), intent="unknown")
-        missing_amount = self.execute(95, amount=None)
+        missing_amount = self.execute(95, amount=None, event_id=uuid4())
 
         self.assertEqual(non_purchase.outcome, "ignored")
         self.assertEqual(missing_amount.outcome, "ignored")

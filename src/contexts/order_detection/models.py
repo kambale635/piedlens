@@ -1,7 +1,9 @@
 """Django model registration for the Order Detection infrastructure layer."""
 
-from .infrastructure.models import (
+from .infrastructure.persistence.models import (
     CandidateOrderCreationLockRecord,
+    DetectionContactLockRecord,
+    ContactReferenceRedirectRecord,
     DetectionCandidateRecord,
     OrderRecord,
     OutboxEventRecord,
@@ -11,6 +13,8 @@ from .infrastructure.models import (
 
 __all__ = [
     "CandidateOrderCreationLockRecord",
+    "DetectionContactLockRecord",
+    "ContactReferenceRedirectRecord",
     "DetectionCandidateRecord",
     "OrderRecord",
     "OutboxEventRecord",

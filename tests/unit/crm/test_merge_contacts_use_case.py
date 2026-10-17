@@ -7,14 +7,14 @@ from contexts.crm.application.exceptions import (
     ContactsMustBeDistinctException,
     ContactNotFoundException,
 )
-from contexts.crm.application.merge_contacts_use_case import MergeContactsUseCase
-from contexts.crm.application.consume_contact_merged_use_case import (
+from contexts.crm.application.use_cases.merge_contacts_use_case import MergeContactsUseCase
+from contexts.crm.application.use_cases.consume_contact_merged_use_case import (
     ConsumeContactMergedUseCase,
 )
-from contexts.crm.application.events import ContactMerged, MergedContactSnapshot
-from contexts.crm.domain.contact import Contact
-from contexts.crm.domain.contact_status import ContactStatus
-from contexts.crm.domain.purchase_history_entry import PurchaseHistoryEntry
+from contexts.crm.domain.events.crm_events import ContactMerged, MergedContactSnapshot
+from contexts.crm.domain.entities.contact import Contact
+from contexts.crm.domain.value_objects.contact_status import ContactStatus
+from contexts.crm.domain.value_objects.purchase_history_entry import PurchaseHistoryEntry
 from shared_kernel.value_objects.money import Money
 
 

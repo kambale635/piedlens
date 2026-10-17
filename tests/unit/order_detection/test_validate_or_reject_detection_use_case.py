@@ -1,19 +1,19 @@
 import unittest
 from uuid import uuid4
 
-from contexts.order_detection.application.events import (
+from contexts.order_detection.domain.events.order_detection_events import (
     DetectionCandidatePromoted,
     DetectionCandidateRejected,
     DetectionCorrectedByMerchant,
 )
-from contexts.order_detection.application.validate_or_reject_detection_use_case import (
+from contexts.order_detection.application.use_cases.validate_or_reject_detection_use_case import (
     ValidateOrRejectDetectionUseCase,
 )
-from contexts.order_detection.domain.detection_candidate import (
+from contexts.order_detection.domain.entities.detection_candidate import (
     DetectionCandidate,
     DetectionCandidateStatus,
 )
-from contexts.order_detection.domain.exceptions import (
+from contexts.order_detection.domain.exceptions.order_detection_exceptions import (
     DetectionCandidateAlreadyReviewedException,
 )
 from shared_kernel.application_exceptions import (
@@ -28,9 +28,14 @@ class InMemoryCandidateRepository:
     def __init__(self, candidate):
         self.candidate = candidate
         self.saved = []
+        self.locked_ids = []
 
     def find_by_id(self, candidate_id):
         return self.candidate if self.candidate.id == candidate_id else None
+
+    def find_for_update_by_id(self, candidate_id):
+        self.locked_ids.append(candidate_id)
+        return self.find_by_id(candidate_id)
 
     def save(self, candidate):
         self.saved.append(candidate)
@@ -89,6 +94,7 @@ class ValidateOrRejectDetectionUseCaseTests(unittest.TestCase):
 
         self.assertEqual(result.status, "promoted")
         self.assertEqual(self.candidate.status, DetectionCandidateStatus.PROMOTED)
+        self.assertEqual(self.repository.locked_ids, [self.candidate.id])
         self.assertEqual(self.repository.saved, [self.candidate])
         self.assertIsInstance(self.outbox.events[0], DetectionCandidatePromoted)
         corrections = self.outbox.events[1:]

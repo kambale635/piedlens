@@ -2,13 +2,13 @@ import unittest
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from contexts.order_detection.application.events import OrderStatusChanged
-from contexts.order_detection.application.update_order_status_use_case import (
+from contexts.order_detection.domain.events.order_detection_events import OrderStatusChanged
+from contexts.order_detection.application.use_cases.update_order_status_use_case import (
     UpdateOrderStatusUseCase,
 )
-from contexts.order_detection.domain.exceptions import InvalidOrderTransitionException
-from contexts.order_detection.domain.order import Order
-from contexts.order_detection.domain.order_status import OrderStatus
+from contexts.order_detection.domain.exceptions.order_detection_exceptions import InvalidOrderTransitionException
+from contexts.order_detection.domain.entities.order import Order
+from contexts.order_detection.domain.value_objects.order_status import OrderStatus
 from shared_kernel.application_exceptions import ResourceNotFoundException, ValidationException
 from shared_kernel.value_objects.confidence_score import ConfidenceScore
 from shared_kernel.value_objects.money import Money

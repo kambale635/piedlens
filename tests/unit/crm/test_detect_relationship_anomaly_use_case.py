@@ -3,12 +3,12 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import uuid4
 
-from contexts.crm.application.detect_relationship_anomaly_use_case import (
+from contexts.crm.application.use_cases.detect_relationship_anomaly_use_case import (
     DetectRelationshipAnomalyUseCase,
 )
-from contexts.crm.domain.contact import Contact
-from contexts.crm.domain.exceptions import InvalidRelationshipAnomalyPolicyException
-from contexts.crm.domain.relationship_anomaly_policy import RelationshipAnomalyPolicy
+from contexts.crm.domain.entities.contact import Contact
+from contexts.crm.domain.exceptions.crm_exceptions import InvalidRelationshipAnomalyPolicyException
+from contexts.crm.domain.value_objects.relationship_anomaly_policy import RelationshipAnomalyPolicy
 from shared_kernel.value_objects.money import Money
 
 

@@ -3,13 +3,20 @@ from uuid import uuid4
 
 from django.test import TransactionTestCase
 
-from contexts.crm.application.merge_contacts_use_case import MergeContactsUseCase
-from contexts.crm.domain.contact import Contact
-from contexts.crm.domain.contact_status import ContactStatus
-from contexts.crm.infrastructure.django_contact_repository import DjangoContactRepository
-from contexts.crm.infrastructure.django_crm_outbox import DjangoCRMOutbox
-from contexts.crm.infrastructure.django_unit_of_work import DjangoCRMUnitOfWork
-from contexts.crm.infrastructure.models import ContactRecord, OutboxEventRecord
+from contexts.crm.application.use_cases.consume_contact_merged_use_case import (
+    ConsumeContactMergedUseCase,
+)
+from contexts.crm.domain.events.crm_events import ContactMerged, MergedContactSnapshot
+from contexts.crm.application.use_cases.merge_contacts_use_case import MergeContactsUseCase
+from contexts.crm.domain.entities.contact import Contact
+from contexts.crm.domain.value_objects.contact_status import ContactStatus
+from contexts.crm.infrastructure.persistence.django_contact_repository import DjangoContactRepository
+from contexts.crm.infrastructure.messaging.django_crm_outbox import DjangoCRMOutbox
+from contexts.crm.infrastructure.persistence.django_processed_message_repository import (
+    DjangoProcessedMessageRepository,
+)
+from contexts.crm.infrastructure.persistence.django_unit_of_work import DjangoCRMUnitOfWork
+from contexts.crm.infrastructure.persistence.models import ContactRecord, OutboxEventRecord
 from shared_kernel.value_objects.money import Money
 
 
@@ -89,3 +96,36 @@ class MergeContactsIntegrationTests(TransactionTestCase):
         self.assertEqual(duplicate_record.status, ContactStatus.ACTIVE.value)
         self.assertIsNone(duplicate_record.merged_into_contact_id)
         self.assertFalse(OutboxEventRecord.objects.exists())
+
+    def test_merge_consumer_absorbs_snapshot_once_with_processed_marker(self):
+        event = ContactMerged(
+            event_id=uuid4(),
+            occurred_at=datetime(2026, 9, 22, tzinfo=timezone.utc),
+            merchant_id=self.merchant_id,
+            primary_contact_id=self.primary.id,
+            merged_contact_id=self.duplicate.id,
+            snapshot=MergedContactSnapshot(
+                total_spent_by_currency=(Money("4", "XOF"), Money("2", "USD")),
+                order_count=2,
+                purchase_history=(),
+                tags=("vip",),
+            ),
+        )
+        consumer = ConsumeContactMergedUseCase(
+            contact_repository=self.contact_repository,
+            processed_events=DjangoProcessedMessageRepository(),
+            unit_of_work=self.unit_of_work,
+        )
+
+        first = consumer.execute(event)
+        replay = consumer.execute(event)
+
+        primary_record = ContactRecord.objects.get(id=self.primary.id)
+        self.assertTrue(first.applied)
+        self.assertFalse(replay.applied)
+        self.assertEqual(
+            primary_record.total_spent_by_currency,
+            {"XOF": "19", "USD": "2"},
+        )
+        self.assertEqual(primary_record.order_count, 2)
+        self.assertEqual(primary_record.tags, ["vip"])

@@ -8,6 +8,9 @@
   - Starter = 1, Pro = 3, Agency = illimité
 - **INV-ID-02** : `phoneNumber` est unique globalement (contrainte d'unicité en base, pas seulement applicative)
 - **INV-ID-03** : Un downgrade de plan est refusé si l'usage actuel dépasse la limite du plan cible (ex : 3 connexions actives, tentative de passage à Starter qui n'en autorise qu'1) → `422 DOWNGRADE_EXCEEDS_CURRENT_USAGE`
+- **INV-ID-04** : Le mot de passe n'est jamais stocké ni journalisé en clair ; seul un hash (hasher Django) est persisté.
+- **INV-ID-05** : Une erreur de connexion ne révèle jamais si le numéro existe (même réponse `401 INVALID_CREDENTIALS`).
+- **INV-ID-06** : L'appartenance d'un `User` à un `Merchant` n'existe que par `RoleAssignment` (Access Control), jamais dupliquée dans Identity.
 
 ## 2. Invariants — Platform Connectors
 
@@ -50,11 +53,12 @@
 
 - **INV-CRM-01** : Clé d'identité d'un `Contact` = `externalIdentifier`, jamais `displayName`. Un changement de `displayName` met à jour le contact existant, ne crée jamais de doublon.
 - **INV-CRM-02** : `CRMSegment` ne stocke jamais la liste de ses membres — toujours calculée dynamiquement (`SegmentMembershipCalculator`), pour éviter la désynchronisation entre agrégats.
-- **INV-CRM-03** : Fusion de contacts (`MergeContactsUseCase`) uniquement déclenchable manuellement par le merchant, jamais automatique — trace d'audit obligatoire conservée après fusion. Elle respecte INV-TR-01 sans exception : première transaction sur le Contact doublon uniquement (tombstone `Merged` + événement `ContactMerged` dans l'Outbox CRM), puis transaction séparée sur le Contact principal par le consommateur idempotent de `ContactMerged`.
+- **INV-CRM-03** : Fusion de contacts (`MergeContactsUseCase`) uniquement déclenchable manuellement par le merchant, jamais automatique — trace d'audit obligatoire conservée après fusion.
 - **INV-CRM-04** : `totalSpent` et `orderCount` d'un `Contact` sont recalculés uniquement en réaction à `OrderStatusChanged` (statut `paid_and_delivered`), jamais modifiés directement par un autre chemin.
 - **INV-CRM-05** : Définition de l'anomalie de relation. Un contact est en anomalie si (a) il a au moins `min_purchases` achats (défaut 3), (b) son inactivité en jours dépasse l'intervalle médian entre achats × `anomaly_multiplier` (défaut 2.0), et (c) son inactivité est >= `min_inactivity_days` (défaut 7). Ces trois paramètres sont configurables (défauts en configuration, surcharge par merchant), jamais codés en dur dans le domaine.
 - **INV-CRM-06** : Une seule alerte `RelationshipAnomalyDetected` par période de silence d'un contact : pas de nouvelle alerte tant qu'un nouvel achat n'a pas eu lieu. L'événement passe par l'Outbox CRM, dans la même transaction que l'enregistrement de la notification émise.
-- **INV-CRM-07** : Un Contact au statut `Merged` est un tombstone d'audit conservé et jamais supprimé. `mergedIntoContactId` référence le Contact principal; toute résolution de ses identifiants externes redirige vers ce principal afin qu'aucune nouvelle activité ne soit appliquée au tombstone.
+- **INV-CRM-07** : Un `Contact` fusionné (`Merged`) est un tombstone : jamais supprimé, ses identifiants externes redirigent vers le contact principal (`mergedIntoContactId`). La fusion respecte INV-TR-01 en deux transactions reliées par l'événement `ContactMerged`.
+- **INV-CRM-08** : Un `Contact` peut dépenser dans plusieurs devises ; ses dépenses sont stockées par devise (`spendingByCurrency`), jamais additionnées entre devises, aucune conversion implicite (cohérent avec INV-OD-05). Une règle de segment sur `totalSpent` doit préciser sa devise ; un contact sans dépense dans cette devise vaut 0 pour cette règle. Le score de fidélité n'utilise que la devise principale du merchant. Une conversion avec taux configurables est reportée en V2.
 
 ## 7. Invariants transverses (tous contextes)
 
@@ -86,7 +90,7 @@
 - **INV-AC-01** : aucune vérification d'accès dans le code applicatif/présentation autrement que via `IPermissionChecker.can()` — zéro comparaison de rôle en dur.
 - **INV-AC-02** : un utilisateur ne peut jamais accorder (`AssignRoleToUserUseCase`) un rôle dont les permissions dépassent celles qu'il possède lui-même sur le même scope (anti auto-élévation).
 - **INV-AC-03** : toute action sur les données d'un merchant vérifie le scope (`AccessScope`) EN PLUS de la permission — un `Staff` du merchant A ne peut jamais agir sur le merchant B même avec la bonne permission nommée.
-- **INV-AC-04** : toute création/modification/révocation de rôle ou d'assignation est tracée (`grantedBy`, horodatage) — jamais d'action silencieuse sur les droits d'accès.
+- **INV-AC-04** : toute création/modification/révocation de rôle ou d'assignation est tracée (`grantedBy`, horodatage) — jamais d'action silencieuse sur les droits d'accès. Les attributions automatiques (rôle Owner à la création d'un merchant) sont tracées avec l'acteur `system`.
 - **INV-AC-05** : le cache de vérification de permission a un TTL court (secondes) et est invalidé immédiatement sur tout changement de rôle/assignation.
 
 ## 11. Invariants — Gestion des erreurs

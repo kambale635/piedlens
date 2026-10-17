@@ -74,6 +74,10 @@ interface IDetectionCandidateRepository {
 }
 ```
 
+### Consommateur `ContactMerged`
+
+`ReassignContactReferencesFromContactMergedUseCase` utilise uniquement les identifiants de l'événement CRM et ignore son snapshot. Il recherche les Orders et DetectionCandidates encore référencés par le contact doublon, puis verrouille, revalide et sauvegarde chaque agrégat dans sa propre transaction. Si le traitement échoue en cours de route, les agrégats déjà réattribués restent committés, le marqueur `processed_events` n'est pas inscrit et une redelivery reprend les seules références restantes. Le marqueur de complétion est écrit après les deux scans (INV-CRM-03, INV-TR-01/03/04). Une redelivery déjà complète retourne zéro réattribution.
+
 ## Cas limites à couvrir explicitement
 
 - Négociation de prix en plusieurs messages → le montant retenu est celui du dernier message contenant un `AmountPattern` détecté avant un signal de paiement, pas le premier montant mentionné dans la conversation

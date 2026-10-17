@@ -3,17 +3,17 @@ from uuid import uuid4
 
 from django.test import TransactionTestCase
 
-from contexts.crm.application.update_contact_from_order_use_case import (
+from contexts.crm.application.use_cases.update_contact_from_order_use_case import (
     UpdateContactFromOrderUseCase,
 )
-from contexts.crm.domain.contact import Contact
-from contexts.crm.domain.loyalty_score import LoyaltyScore
-from contexts.crm.infrastructure.django_contact_repository import DjangoContactRepository
-from contexts.crm.infrastructure.django_processed_message_repository import (
+from contexts.crm.domain.entities.contact import Contact
+from contexts.crm.domain.value_objects.loyalty_score import LoyaltyScore
+from contexts.crm.infrastructure.persistence.django_contact_repository import DjangoContactRepository
+from contexts.crm.infrastructure.persistence.django_processed_message_repository import (
     DjangoProcessedMessageRepository,
 )
-from contexts.crm.infrastructure.django_unit_of_work import DjangoCRMUnitOfWork
-from contexts.crm.infrastructure.models import ContactRecord, ProcessedMessageRecord
+from contexts.crm.infrastructure.persistence.django_unit_of_work import DjangoCRMUnitOfWork
+from contexts.crm.infrastructure.persistence.models import ContactRecord, ProcessedMessageRecord
 from shared_kernel.value_objects.money import Money
 
 
@@ -22,14 +22,20 @@ class UpdateContactFromOrderIntegrationTests(TransactionTestCase):
 
     def setUp(self):
         class LoyaltyCalculator:
-            def calculate(self, contact):
+            def calculate(self, contact, primary_currency):
+                self.asserted_currency = primary_currency
                 return LoyaltyScore(min(contact.order_count * 7, 100))
+
+        class MerchantDefaults:
+            def primary_currency(self, merchant_id):
+                return "XOF"
 
         self.contact_repository = DjangoContactRepository()
         self.unit_of_work = DjangoCRMUnitOfWork()
         self.use_case = UpdateContactFromOrderUseCase(
             contact_repository=self.contact_repository,
             loyalty_score_calculator=LoyaltyCalculator(),
+            defaults_provider=MerchantDefaults(),
             processed_messages=DjangoProcessedMessageRepository(),
             unit_of_work=self.unit_of_work,
         )
@@ -123,12 +129,17 @@ class UpdateContactFromOrderIntegrationTests(TransactionTestCase):
                 raise RuntimeError("force processed marker failure")
 
         class LoyaltyCalculator:
-            def calculate(self, contact):
+            def calculate(self, contact, primary_currency):
                 return LoyaltyScore(50)
+
+        class MerchantDefaults:
+            def primary_currency(self, merchant_id):
+                return "XOF"
 
         use_case = UpdateContactFromOrderUseCase(
             contact_repository=self.contact_repository,
             loyalty_score_calculator=LoyaltyCalculator(),
+            defaults_provider=MerchantDefaults(),
             processed_messages=FailingProcessedRepository(),
             unit_of_work=self.unit_of_work,
         )

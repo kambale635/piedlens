@@ -22,13 +22,18 @@ L'historique de dates est prospectif à partir du déploiement de cette fonction
 
 ### `CalculateSegmentMembersUseCase`
 1. Pour un `CRMSegment` donné, invoquer `SegmentMembershipCalculator.evaluate(segment.definitionRule, contacts)`
-2. Résultat mis en cache Redis (TTL court, voir `04-tech-stack-infrastructure.md` §2.1) — jamais stocké de façon permanente sur l'agrégat `CRMSegment` (évite désynchronisation, cf. frontière d'agrégat DDD)
+2. Résultat mis en cache Redis (TTL configurable, 5 minutes par défaut) et invalidé après commit d'une modification de Contact — jamais stocké de façon permanente sur l'agrégat `CRMSegment` (évite désynchronisation, cf. frontière d'agrégat DDD).
+3. `total_spent` est toujours comparé comme `Money` dans sa devise déclarée, sans addition ni conversion d'autres devises. L'opérateur `contains` ne s'applique qu'aux tags et compare des valeurs exactes.
 
 ### `SendBulkMessageUseCase`
-1. Résoudre les membres du segment (`CalculateSegmentMembersUseCase`)
-2. Pour chaque contact, générer le message personnalisé (remplacement de variables : `{prenom}`, `{dernier_produit}`)
-3. Appeler `IMessageSender` (contexte Platform Connectors) en respectant `IRateLimiter` (contrainte anti-spam imposée par les plateformes)
-4. Journaliser chaque envoi (`BulkMessageLog`) pour traçabilité et éviter les doublons de campagne
+1. Résoudre les membres du segment (`GetSegmentMembersUseCase`) et figer l'audience dans la campagne.
+2. Persister la campagne et ses journaux de destinataires, puis `BulkMessageQueued` dans l'Outbox CRM, dans une seule transaction.
+3. Retourner immédiatement `{ bulkMessageLogId, status: processing, recipientCount }`; aucune API de plateforme n'est appelée dans la requête.
+
+Le texte `template` reçu est déjà rendu. Le CRM ne substitue pas `{prenom}` ou `{dernier_produit}` : aucune source fiable de prénom/dernier produit n'est définie dans ses agrégats; ces variables sont reportées jusqu'à définition d'un contrat de données.
+
+### `ProcessBulkMessageCampaignUseCase`
+Le consumer CRM traite les journaux de destinataires un par un; chaque état destinataire est persisté séparément pour garder les transactions courtes. `IRateLimiter` peut laisser un destinataire en attente pour reprise. `IMessageSender` reçoit la clé stable `campaignId:contactId` et doit dédupliquer les retries; l'appel externe reste hors transaction SQL. À la fin seulement, le worker marque la campagne `completed`, ajoute `BulkMessageCompleted` à l'Outbox et marque `(eventId, crm-bulk-message-consumer)` dans la même transaction. Aucun contenu de message n'est stocké dans le journal de livraison.
 
 ### `DetectRelationshipAnomalyUseCase`
 Job planifié périodique. Règle d'anomalie (voir INV-CRM-05, INV-CRM-06) :
@@ -70,7 +75,7 @@ interface ISegmentRepository {
 
 Le temps 1 verrouille et modifie uniquement le Contact doublon. `ContactMerged` contient `eventId`, `merchantId`, `primaryContactId`, `mergedContactId` et l'instantané métier du doublon. Le tombstone et l'événement CRM Outbox sont écrits atomiquement (INV-CRM-03/07, INV-TR-01/02).
 
-Le temps 2 est traité par le consommateur CRM de `ContactMerged`; il vérifie `processed_events`, verrouille et modifie uniquement le Contact principal, absorbe l'instantané une seule fois, puis marque l'événement traité (INV-TR-01/03). Le doublon reste conservé pour résolution d'identité et audit.
+Le temps 2 est traité par le consommateur CRM de `ContactMerged`; il vérifie `processed_events`, verrouille et modifie uniquement le Contact principal, absorbe une seule fois les montants du snapshot par devise via `Money.add()`, ajoute `orderCount` du snapshot à celui du principal et unit historique d'achats et tags, puis marque l'événement traité dans la même transaction (INV-CRM-04, INV-TR-01/03). Les valeurs absorbées proviennent du snapshot immuable capturé au temps 1; le doublon reste conservé pour résolution d'identité et audit.
 
 Order Detection consomme le même événement indépendamment. Il réattribue chaque `Order` et chaque `DetectionCandidate` dans des transactions séparées, une racine par transaction. Chaque réattribution est idempotente et reprenable après crash; le consommateur n'inscrit son marqueur de complétion qu'après le traitement de toutes les racines concernées. CRM ne lit ni ne modifie les tables Order Detection.
 

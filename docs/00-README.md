@@ -34,6 +34,8 @@ Si tu n'ouvres que 3 fichiers avant de commencer à coder : `18-product-vision-a
 | 21 | `21-middleware-layer.md` | **Couche Middleware complète** : auth, tenant isolation, permissions, rate limiting, audit, exceptions |
 | 22 | `22-error-handling-and-exceptions.md` | Hiérarchie d'exceptions, mapping HTTP, format de réponse d'erreur unique |
 | 23 | `23-shared-kernel-value-objects.md` | Value Objects partagés entre tous les contextes (Money, téléphone, identifiants...) |
+| 24 | `24-permissions-catalog.md` | Catalogue des permissions, généré par Copilot à partir des routes protégées |
+| 25 | `25-context-identity.md` | Bounded Context : Identity (User, Merchant, connexion, inscription) |
 
 ## Règle d'or pour toi (le concepteur produit, non-développeur)
 

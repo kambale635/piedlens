@@ -3,6 +3,108 @@
 Ce fichier conserve les decisions, documents consultes, fichiers crees ou modifies et prochaines etapes afin de faciliter la reprise du projet.
 Mettre a jour ce journal a chaque etape importante.
 
+## 2026-10-16 - Reprise de la structuration Clean Architecture
+
+- Périmètre courant : réorganiser les couches par bounded context selon `docs/05-module-structure.md`, sans modifier les contrats métier.
+- Order Detection — `DetectOrderUseCase` : comportement et tests existants; structure en cours.
+- Order Detection — `CreateOrderFromPromotedDetectionUseCase` : comportement et tests existants; structure en cours.
+- Order Detection — `UpdateOrderStatusUseCase` : comportement et tests existants; structure en cours.
+- Order Detection — `GetDormantMoneyDashboardUseCase` : comportement et tests existants; structure en cours.
+- Order Detection — `ScheduleReminderUseCase` : comportement et tests existants; structure en cours.
+- Order Detection — `SendScheduledRemindersUseCase` : comportement et tests existants; structure en cours.
+- Order Detection — `ValidateOrRejectDetectionUseCase` : comportement et tests existants; structure en cours.
+- Order Detection — `ListPendingDetectionCandidatesUseCase` : comportement et tests existants; structure en cours.
+- Order Detection — `ReassignContactReferencesFromContactMergedUseCase` : comportement et tests existants; structure en cours.
+- Décision de placement : exceptions génériques et bases partagées restent dans `shared_kernel`; exceptions métier restent dans leur bounded context, rangées sous `exceptions/`.
+- Étape suivante : déplacer les entités, repositories, value objects et événements Order Detection vers les sous-dossiers documentés, puis valider import Django, tests unitaires/intégration et frontières d'architecture.
+
+### Order Detection — structure terminée
+
+- Domain réorganisé conformément à `docs/05-module-structure.md` : `entities/`, `repositories/`, `value_objects/`, `exceptions/` et `events/`; les Use Cases, DTO (`application/dto`), ports applicatifs (`application/ports`) et adaptateurs de persistance restent à leurs frontières documentées.
+- Exceptions génériques (`DomainException`, `ApplicationException`, exceptions applicatives transverses et Value Objects partagés) restent dans `shared_kernel`. Les exceptions propres à Order Detection sont sous `domain/exceptions`; l'exception de conflit de planification, qui relève de l'application, est sous `application/exceptions`.
+- Imports actualisés dans le container, l'application, l'infrastructure et les tests; les modèles Django restent enregistrés via `contexts.order_detection.models`.
+- Ajout du test d'architecture qui impose ces chemins et vérifie les frontières entre contextes.
+- Validation : architecture 4/4; tests unitaires Order Detection 43/43; intégration Django Order Detection 13/13; `manage.py check` sans problème; `makemigrations --check --dry-run` sans changement.
+- CRM, initialement non migré au début de cette reprise, a été réorganisé et validé ci-dessous.
+
+### CRM — structure terminée
+
+- Domain rangé sous `entities/`, `value_objects/`, `services/`, `repositories/`, `exceptions/` et `events/`; les ports et exceptions applicatifs sont des packages sous `application/ports` et `application/exceptions`.
+- Modèles Django déplacés sous `infrastructure/persistence`; leur enregistrement public reste dans `contexts.crm.models`.
+- Les imports du container, de l'infrastructure et des tests CRM suivent les nouveaux chemins. Le comportement métier n'a pas été modifié.
+- Validation : tests unitaires CRM 39/39; intégration Django CRM 19/19; architecture dynamique 4/4; `manage.py check` OK; aucune migration CRM manquante.
+- Limite Git : l'index contenait déjà des modifications et renommages CRM antérieurs à cette tâche. Aucun commit CRM n'est créé afin de ne pas embarquer ces changements préexistants.
+
+### Blocage documentaire avant Identity / Access Control
+
+- Les sept bounded contexts sont maintenant sous `src/contexts`. CRM et Order Detection ont des modules fonctionnels réorganisés; Identity, Access Control et Rules Engine sont des squelettes déplacés de `shared_kernel`; Platform Connectors et Backup restent des squelettes sans modules métier à déplacer.
+- Contradiction Identity : `docs/05-module-structure.md` et `docs/13-technology-decision-adr.md` listent un contexte Identity séparé; `docs/15-use-cases-catalog.md` groupe « Identity & Access »; aucune spécification `docs/0X-context-identity.md` n'existe.
+- Contradiction Access Control : `docs/20-context-access-control.md` définit cinq contrats (`CreateRole`, `UpdateRolePermissions`, `AssignRoleToUser`, `RevokeRoleFromUser`, `CheckPermission`), mais `docs/15-use-cases-catalog.md` ne définit aucun Use Case Access Control et le marque bloqué.
+- `docs/24-permissions-catalog.md` interdit d'ajouter des permissions sans route réellement protégée. Aucun module de présentation/API n'est présent actuellement; le catalogue reste donc vide conformément à sa règle.
+- Les sept middlewares sont déjà implémentés et enregistrés; les tests globaux les couvrent. Le catalogue des permissions reste vide tant qu'aucune route ne déclare réellement `@requires_permission`.
+- Suite après déplacements : `python3 manage.py test tests --settings=config.test_settings -v 1` passe 32/32; architecture 4/4; `manage.py check` OK; aucune migration manquante.
+- Reprise requise après décision documentaire : préciser si Identity est un contexte distinct et ajouter son document de contexte; intégrer ou non les cinq contrats Access Control dans le catalogue Use Cases; ne créer les permissions qu'en même temps que leurs routes effectives. Reprendre ensuite Platform Connectors, Rules Engine et Backup dans l'ordre utilisateur.
+- Les commits par contexte n'ont pas été créés : l'index et le worktree contiennent des modifications utilisateur antérieures, notamment des fonctionnalités CRM/migrations déjà indexées et les changements Order Detection. Un commit ciblé risquerait d'embarquer ces changements; isoler l'index avant de committer.
+
+## 2026-09-27 - Prise de contexte
+## Checklist des Use Cases — état initial au 2026-10-14
+
+Statut « fait » signifie contrat, implémentation, docstring avec invariants, permission sur la route et test. Les implémentations partielles restent « à faire ».
+
+### Identity
+- [ ] à faire — `RegisterMerchantUseCase` (implémentation et route protégée à créer)
+- [ ] à faire — `ChangeSubscriptionPlanUseCase` (implémentation et route protégée à créer)
+
+### Access Control
+- [ ] bloqué — aucun Use Case Access Control n'est défini dans `docs/15-use-cases-catalog.md`; contrats nécessaires avant implémentation.
+
+### Platform Connectors
+- [ ] à faire — `ConnectPlatformUseCase`
+- [ ] à faire — `SyncMessagesUseCase`
+- [ ] à faire — `HandleIncomingWebhookUseCase`
+- [ ] à faire — `RefreshTokensUseCase`
+
+### Rules Engine
+- [ ] à faire — `EvaluateMessageUseCase`
+- [ ] à faire — `UpdateRuleSetUseCase`
+- [ ] à faire — `AdjustRuleWeightFromCorrectionUseCase`
+
+### Backup
+- [ ] à faire — `CreateSnapshotUseCase`
+- [ ] à faire — `RestoreFromSnapshotUseCase`
+- [ ] à faire — `CheckAccountHealthUseCase`
+- [ ] à faire — `DeleteAllMerchantDataUseCase`
+
+### Order Detection
+- [ ] à faire — `DetectOrderUseCase` (logique et tests présents; route protégée et architecture à compléter)
+- [ ] à faire — `UpdateOrderStatusUseCase` (logique et tests présents; route protégée et architecture à compléter)
+- [ ] à faire — `GetDormantMoneyDashboardUseCase` (logique et tests présents; route protégée et architecture à compléter)
+- [ ] à faire — `ScheduleReminderUseCase` (logique et tests présents; route protégée et architecture à compléter)
+- [ ] à faire — `SendScheduledRemindersUseCase` (logique et tests présents; route protégée et architecture à compléter)
+- [ ] à faire — `ValidateOrRejectDetectionUseCase` (logique et tests présents; route protégée et architecture à compléter)
+- [ ] à faire — `ListPendingDetectionCandidatesUseCase` (logique et tests présents; route protégée et architecture à compléter)
+- [ ] à faire — `ReassignContactReferencesFromContactMergedUseCase` (logique et tests présents; consumer et architecture à compléter)
+
+### CRM
+- [ ] à faire — `UpdateContactFromMessageUseCase` (logique et tests présents; consumer protégé et architecture à compléter)
+- [ ] à faire — `UpdateContactFromOrderUseCase` (logique et tests présents; consumer protégé et architecture à compléter)
+- [ ] à faire — `CreateSegmentUseCase` (logique et tests présents; route protégée et architecture à compléter)
+- [ ] à faire — `GetSegmentMembersUseCase` (logique et tests présents; route protégée et architecture à compléter)
+- [ ] à faire — `SendBulkMessageUseCase` (logique et tests présents; route protégée et architecture à compléter)
+- [ ] à faire — `ProcessBulkMessageCampaignUseCase` (implémentation présente; test et consumer à vérifier)
+- [ ] à faire — `DetectRelationshipAnomalyUseCase` (logique et tests présents; job et architecture à compléter)
+- [ ] à faire — `MergeContactsUseCase` (logique et tests présents; route protégée et architecture à compléter)
+
+### Avancement 2026-10-14
+- Restructuration partielle par `git mv`: les Use Cases CRM et Order Detection sont dans `application/use_cases`; leurs adaptateurs sont répartis entre `persistence`, `messaging` et `adapters`; ports et DTO Order Detection sont séparés.
+- Les sept middlewares sont déplacés sous `src/middleware`, implémentés et enregistrés dans l'ordre documentaire. Tests dédiés: 7 passent.
+- Ajout du test d'architecture Clean Architecture/frontières de contexte: 3 passent.
+- CRM multi-devises: `spendingByCurrency`, erreur `CURRENCY_REQUIRED`, zéro pour une devise absente; devise principale passée au calcul du score. Contrats et INV-CRM-08 alignés.
+- Validations: 39 tests unitaires CRM et 43 Order Detection passent; intégrations Django CRM 19/19 et Order Detection 13/13; middleware 7/7; architecture 3/3; `manage.py test tests` 32/32; `manage.py check` sans problème; aucune migration manquante.
+- La checklist garde « à faire » pour tous les Use Cases, car aucune route protégée/permission n'est encore en place et des contextes n'ont pas d'implémentation; Access Control est bloqué car aucun Use Case n'est défini au catalogue.
+- Commit par contexte non effectué: les fichiers CRM/Order Detection déplacés contiennent aussi des changements préexistants non committés. Un commit les inclurait avec ces modifications utilisateur; demander une séparation/validation avant commit.
+- Bloquants avant production: relay Outbox et publisher Redis restent des placeholders; manque de routes avec `@requires_permission`, d'implémentations sur les contextes identity/access_control/platform_connectors/rules_engine/backup, et tests PostgreSQL concurrents.
+
 ## 2026-09-27 - Prise de contexte
 
 ### Documents consultes
@@ -381,3 +483,53 @@ Commencer l'implementation fonctionnelle un Use Case a la fois, en suivant son c
 - Les contrats et invariants de `docs/12-context-crm.md`, `docs/15-use-cases-catalog.md`, `docs/16-business-invariants-and-rules.md` et `docs/14-event-driven-architecture.md` sont mis à jour pour le tombstone `Merged`, la redirection, le payload snapshot et la cohérence éventuelle.
 - **BLOQUANT AVANT MISE EN PRODUCTION** : `OutboxRelayWorker` et `RedisStreamEventPublisher` sont encore des placeholders. Les événements présents dans les tables Outbox ne sont donc pas livrés à Redis; aucun flux inter-contextes qui en dépend ne peut être considéré opérationnel tant que relay, publication, reprise/ack et tests bout en bout ne sont pas implémentés.
 - Aucun code de fusion n'est implémenté dans cette étape documentaire. Prochaine action : tests puis implémentation CRM temps 1, CRM temps 2, puis Order Detection consumer, chacun séparément et conformément aux nouveaux contrats.
+
+## 2026-09-28 - Fusion CRM temps 1 et temps 2
+
+### Décision métier appliquée
+
+- Le propriétaire a explicitement élargi INV-CRM-04 : seuls `OrderStatusChanged` (`paid_and_delivered`) et `ContactMerged` (absorption du snapshot) peuvent modifier `totalSpent` et `orderCount`.
+- `docs/16-business-invariants-and-rules.md`, `docs/12-context-crm.md` et `docs/15-use-cases-catalog.md` décrivent désormais cette règle et son traitement idempotent.
+
+### Implémentation
+
+- `Contact.absorb_merged_contact()` additionne les montants par devise via `Money.add()`, ajoute le `orderCount` du snapshot, unit l'historique et les tags.
+- Ajout de `ConsumeContactMergedUseCase` : verrouille et modifie uniquement le Contact principal, consomme `processed_events` dans le même `DjangoCRMUnitOfWork`, et rejoue un événement déjà traité sans nouvelle addition.
+- Le composition root expose le consumer; le README CRM reflète MergeContactsUseCase et le consumer comme implémentés.
+- Le test d'intégration CRM vérifie l'addition multi-devise, le compteur et le rejeu idempotent. Aucun changement n'a été apporté au contexte Order Detection dans cette tâche.
+
+### Validation
+
+- Test unitaire fusion ciblé : 6/6 passent.
+- Tests unitaires CRM : 28/28 passent.
+- Tests d'intégration CRM sous SQLite : 17/17 passent; le system check Django ne signale aucun problème.
+- Tests unitaires Order Detection : 37/37 passent.
+- Tests d'intégration Order Detection sous SQLite : 10/10 passent.
+- `python3 manage.py makemigrations --check --dry-run --settings=config.test_settings` : aucune migration manquante.
+- Le relay Outbox reste un placeholder bloquant avant livraison réelle des événements à Redis. Le consumer Order Detection de `ContactMerged` (réattribution des Orders et DetectionCandidates) reste à implémenter dans une tâche distincte.
+
+### Prochaine étape en attente
+
+- Après validation du propriétaire sur ce jalon, poursuivre par le consumer CRM `ContactMerged` si le wiring de production le requiert, puis traiter séparément le consumer Order Detection selon le contrat catalogue. Ne pas considérer les événements comme distribués tant que le relay Outbox n'est pas implémenté et testé.
+
+## 2026-09-28 - Consumer Order Detection de ContactMerged
+
+### Implémentation
+
+- Ajout de `ReassignContactReferencesFromContactMergedUseCase` et de son DTO local Order Detection; le consumer ignore le snapshot CRM et ne dépend d'aucune classe du contexte CRM.
+- Ajout des méthodes de recherche d'IDs et de chargement verrouillé dans les ports et repositories Order Detection. Les agrégats `Order` et `DetectionCandidate` exposent leur propre opération de réattribution.
+- Chaque agrégat est revalidé et modifié dans une transaction distincte. Le marqueur `order-detection-contact-merge-consumer` n'est écrit qu'après le balayage des Orders et des DetectionCandidates.
+- Les références déjà réattribuées sont ignorées lors d'une reprise. `DjangoProcessedEventRepository.mark_processed()` utilise désormais `get_or_create()` pour rendre l'insertion du marqueur finale tolérante à une livraison concurrente.
+- Le composition root, le README Order Detection, `docs/11-context-order-detection.md` et le contrat du catalogue documentent le consumer.
+
+### Validation
+
+- Tests unitaires Order Detection : 39/39 passent, dont filtrage des références, redelivery sans effet et reprise après échec partiel.
+- Tests d'intégration ORM ciblés : 12/12 passent sous SQLite, dont le commit séparé de chaque agrégat et la reprise sans marqueur prématuré.
+- `python3 manage.py makemigrations order_detection --check --dry-run --settings=config.test_settings` : aucune migration détectée.
+- Diagnostics VS Code sur les modules, adapters, wiring et tests touchés : aucune erreur.
+- SQLite ne valide pas la concurrence réelle PostgreSQL; le contrôle concurrent PostgreSQL CI reste requis. Aucun relay Redis n'a été ajouté.
+
+### Prochaine étape en attente
+
+- Attendre la validation du propriétaire avant d'entreprendre une autre tâche. La publication des événements `ContactMerged` n'est pas opérationnelle en bout en bout tant que le relay Outbox et son worker de consommation ne sont pas implémentés.

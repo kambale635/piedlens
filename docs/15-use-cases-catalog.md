@@ -4,16 +4,33 @@
 
 ---
 
-## Contexte : Identity & Access
+## Contexte : Identity (détails : `25-context-identity.md`)
 
-### `RegisterMerchantUseCase`
-- **Déclencheur** : inscription depuis l'app
-- **Entrée** : `{ name: string, phoneNumber: string, country: string(ISO 3166-1), preferredLanguage: string(ISO 639-1), currency: string(ISO 4217), password: string }`
+### `RegisterUserUseCase`
+- **Mode d'entrée** : route publique
+- **Entrée** : `{ phoneNumber: string, password: string, email?: string }`
+- **Sortie** : `{ userId: uuid }`
+- **Erreurs** : `409 PHONE_ALREADY_REGISTERED`, `400 INVALID_PHONE_FORMAT`, `400 WEAK_PASSWORD`
+- **Événements publiés** : `UserRegistered`
+
+### `AuthenticateUserUseCase`
+- **Mode d'entrée** : route publique (limitée par `RateLimitMiddleware`)
+- **Entrée** : `{ phoneNumber: string, password: string }`
+- **Sortie** : `{ accessToken: string, refreshToken: string, expiresAt: datetime }`
+- **Erreurs** : `401 INVALID_CREDENTIALS` (identique que le numéro existe ou non, INV-ID-05), `403 ACCOUNT_DISABLED`
+
+### `RefreshAccessTokenUseCase`
+- **Mode d'entrée** : route publique
+- **Entrée** : `{ refreshToken: string }`
+- **Sortie** : `{ accessToken: string, expiresAt: datetime }`
+- **Erreurs** : `401 INVALID_REFRESH_TOKEN`
+
+### `CreateMerchantUseCase`
+- **Mode d'entrée** : route authentifiée (`actingUserId` vient du token, jamais du body)
+- **Entrée** : `{ name: string, country: string(ISO 3166-1), preferredLanguage: string(ISO 639-1), currency: string(ISO 4217) }`
 - **Sortie** : `{ merchantId: uuid, subscriptionPlan: "starter" }`
-- **Préconditions** : `phoneNumber` non déjà enregistré
-- **Postconditions** : `Merchant` créé en statut actif, plan `Starter` par défaut
-- **Erreurs** : `409 PHONE_ALREADY_REGISTERED`, `400 INVALID_PHONE_FORMAT`
-- **Événements publiés** : `MerchantRegistered`
+- **Erreurs** : `400 VALIDATION_ERROR`
+- **Événements publiés** : `MerchantRegistered` (consommé par Access Control, voir `AssignOwnerRoleOnMerchantRegisteredUseCase`)
 
 ### `ChangeSubscriptionPlanUseCase`
 - **Entrée** : `{ merchantId: uuid, newPlan: "starter"|"pro"|"agency" }`
@@ -21,6 +38,46 @@
 - **Préconditions** : paiement confirmé côté fournisseur de paiement (hors scope de ce Use Case, appelé après confirmation webhook de paiement)
 - **Erreurs** : `422 DOWNGRADE_EXCEEDS_CURRENT_USAGE` (ex: merchant a 3 connexions actives, tente de repasser Starter qui n'en autorise qu'1)
 - **Événements publiés** : `MerchantPlanChanged`
+
+---
+
+## Contexte : Access Control (détails : `20-context-access-control.md`)
+
+### `CreateRoleUseCase`
+- **Mode d'entrée** : route, permission `role.create`
+- **Entrée** : `{ name: string, permissions: string[] }`
+- **Sortie** : `{ roleId: uuid }`
+- **Erreurs** : `400 UNKNOWN_PERMISSION`, `409 ROLE_NAME_ALREADY_EXISTS`
+
+### `UpdateRolePermissionsUseCase`
+- **Mode d'entrée** : route, permission `role.update`
+- **Entrée** : `{ roleId: uuid, permissions: string[] }`
+- **Sortie** : `{ roleId: uuid, permissions: string[] }`
+- **Événements publiés** : `RolePermissionsChanged`
+
+### `AssignRoleToUserUseCase`
+- **Mode d'entrée** : route, permission `role.assign`
+- **Entrée** : `{ userId: uuid, roleId: uuid, scope: "global"|{merchantId: uuid}, grantedBy: uuid }`
+- **Sortie** : `{ roleAssignmentId: uuid }`
+- **Erreurs** : `403 INSUFFICIENT_PRIVILEGE_TO_GRANT` (INV-AC-02)
+- **Événements publiés** : `RoleAssigned`
+
+### `RevokeRoleFromUserUseCase`
+- **Mode d'entrée** : route, permission `role.revoke`
+- **Entrée** : `{ roleAssignmentId: uuid, revokedBy: uuid }`
+- **Sortie** : `{ revokedAt: datetime }`
+- **Événements publiés** : `RoleRevoked`
+
+### `CheckPermissionUseCase`
+- **Mode d'entrée** : interne (appelé par `PermissionMiddleware`), aucune route
+- **Entrée** : `{ userId: uuid, permission: string, scope: "global"|{merchantId: uuid} }`
+- **Sortie** : `{ allowed: boolean }`
+
+### `AssignOwnerRoleOnMerchantRegisteredUseCase`
+- **Mode d'entrée** : consommateur de `MerchantRegistered` (idempotent, INV-TR-03)
+- **Entrée** : `{ merchantId: uuid, ownerUserId: uuid }`
+- **Sortie** : `{ roleAssignmentId: uuid }` (rôle `Owner`, scope `{merchantId}`, `grantedBy = system`)
+- **Événements publiés** : `RoleAssigned`
 
 ---
 
@@ -152,14 +209,6 @@
 
 ---
 
-### `ReassignContactReferencesFromContactMergedUseCase` (consumer Order Detection)
-- **Déclencheur** : événement `ContactMerged` produit par CRM.
-- **Entrée** : enveloppe `{ eventId, payload: { merchantId, primaryContactId, mergedContactId, snapshot } }`; Order Detection n'utilise que les IDs et ignore le snapshot CRM.
-- **Sortie** : `{ reassignedOrderCount: number, reassignedCandidateCount: number }` après traitement complet.
-- **Traitement transactionnel** : rechercher uniquement dans les repositories Order Detection; réattribuer chaque `Order.contactId` puis chaque `DetectionCandidate.contactId` au principal, une racine par transaction. Pas de transaction englobant plusieurs agrégats (INV-TR-01).
-- **Idempotence/reprise** : chaque réattribution est idempotente et peut être rejouée après crash; marqueur de complétion `(eventId, order-detection-contact-merge-consumer)` inscrit après traitement de toutes les racines (INV-TR-03).
-- **Événements publiés** : aucun événement métier requis.
-
 ## Contexte : CRM
 
 ### `UpdateContactFromMessageUseCase`
@@ -170,15 +219,13 @@
 
 ### `UpdateContactFromOrderUseCase`
 - **Déclencheur** : événement `OrderStatusChanged` (statut = `paid_and_delivered`)
-- **Entrée** : enveloppe `{ eventId: uuid, payload: { contactId: uuid, orderId: uuid, status: string, orderAmount: Money, updatedAt: datetime } }`
-- **Sortie** : `{ contactId: uuid, totalSpentByCurrency: Money[], orderCount: number, loyaltyScore: number }`
-- **Historique** : pour `paid_and_delivered`, ajoute `{ orderId, purchasedAt: updatedAt }` au `purchaseHistory` CRM du Contact; n'interroge jamais les tables Order Detection (INV-TR-04)
-- **Idempotence** : déduplique `(eventId, crm-order-consumer)` dans la même transaction que Contact (INV-TR-03); un `orderId` déjà présent ne modifie pas deux fois les agrégats
+- **Entrée** : `{ contactId: uuid, orderAmount: Money }`
+- **Sortie** : `{ contactId: uuid, spendingByCurrency: Money[], orderCount: number, loyaltyScore: number }`
 
 ### `CreateSegmentUseCase`
-- **Entrée** : `{ merchantId: uuid, name: string, definitionRule: { field: string, operator: ">"|"<"|"="|"contains", value: any } }`
+- **Entrée** : `{ merchantId: uuid, name: string, definitionRule: { field: string, operator: ">"|"<"|"="|"contains", value: any, currency?: string } }` (`currency` obligatoire quand `field = totalSpent`, voir INV-CRM-08)
 - **Sortie** : `{ segmentId: uuid }`
-- **Erreurs** : `400 UNKNOWN_FIELD`, `400 UNSUPPORTED_OPERATOR`
+- **Erreurs** : `400 UNKNOWN_FIELD`, `400 UNSUPPORTED_OPERATOR`, `400 CURRENCY_REQUIRED`
 
 ### `GetSegmentMembersUseCase`
 - **Entrée** : `{ segmentId: uuid, page?: number, pageSize?: number }`
@@ -197,19 +244,13 @@
 - **Sortie** : `{ anomaliesDetected: ContactAnomaly[] }` où `ContactAnomaly = { contactId: uuid, daysSinceLastPurchase: number, usualIntervalDays: number }`
 - **Règle** : voir INV-CRM-05 et INV-CRM-06 (`16-business-invariants-and-rules.md`), paramètres configurables, aucune valeur codée en dur
 - **Postconditions** : une notification est enregistrée par contact alerté, dans la même transaction que l'écriture Outbox (une seule alerte par période de silence)
-- **Événements publiés** : `RelationshipAnomalyDetected` (par anomalie), via Outbox CRM uniquement; payload `{ merchantId, contactId, lastPurchaseOrderId, daysSinceLastPurchase, usualIntervalDays }`
-- **Erreurs** : `422 INVALID_RELATIONSHIP_ANOMALY_POLICY` si les paramètres issus de la configuration sont invalides (voir `docs/22-error-handling-and-exceptions.md`)
+- **Événements publiés** : `RelationshipAnomalyDetected` (par anomalie), via Outbox CRM uniquement
 
 ### `MergeContactsUseCase`
 - **Entrée** : `{ primaryContactId: uuid, duplicateContactId: uuid, merchantId: uuid }`
-- **Sortie** : `{ primaryContactId: uuid, mergedContactId: uuid, status: "merge_in_progress" }` — la cohérence inter-contextes est éventuelle; aucun compte de commandes Order Detection n'est retourné synchroniquement.
-- **Préconditions** : déclenchement manuel par le merchant (INV-CRM-03); les deux Contacts existent dans le même merchant; IDs distincts; ni le principal ni le doublon n'est déjà `Merged`.
-- **Temps 1 / transaction CRM** : modifier le Contact doublon uniquement; le passer à `Merged`, définir `mergedIntoContactId`, conserver son tombstone et son audit, et ajouter `ContactMerged` à l'Outbox CRM dans la même transaction (INV-TR-01/02, INV-CRM-07).
-- **Payload `ContactMerged`** : `{ eventId, merchantId, primaryContactId, mergedContactId, snapshot: { totalSpentByCurrency: Money[], orderCount, purchaseHistory: [{ orderId, purchasedAt }], tags } }`. Le snapshot est immuable et pris dans la transaction du temps 1.
-- **Redirection** : dès le commit du temps 1, la résolution d'un identifiant externe lié au doublon suit `mergedIntoContactId` vers le Contact principal.
-- **Temps 2 / consommateur CRM** : idempotence `processed_events`; modifier uniquement le Contact principal dans une transaction distincte, absorber les montants par devise avec `Money.add()`, unir l'historique et les tags, puis marquer l'événement traité (INV-TR-01/03).
-- **Erreurs** : `404 CONTACT_NOT_FOUND` si un Contact est absent ou hors merchant; `409 CONTACTS_MUST_BE_DISTINCT` si les IDs sont identiques; `409 CONTACT_ALREADY_MERGED` si l'un des deux est déjà `Merged`.
-- **Postconditions** : le doublon demeure en tombstone (INV-CRM-07); la fusion complète est éventuelle, de l'ordre de quelques secondes.
+- **Sortie** : `{ mergedContactId: uuid, mergedOrderCount: number }`
+- **Préconditions** : action manuelle uniquement (déclenchée par le merchant, jamais automatique — voir invariants)
+- **Postconditions** : trace d'audit de la fusion conservée
 
 ---
 
@@ -219,3 +260,8 @@
 - Tout montant : toujours objet `Money { amount, currency }`, jamais un nombre nu dans un contrat d'entrée/sortie
 - Toute date : ISO 8601 avec fuseau horaire explicite (`datetime`)
 - Toute énumération de statut : chaîne explicite en `snake_case`, jamais un entier magique
+
+
+## Mode d'entrée d'un Use Case (règle de complétude)
+
+Chaque Use Case a **un seul** mode d'entrée : route API (avec permission déclarée), consommateur d'événement, job planifié, ou usage interne. Un Use Case déclenché par événement ou job n'a **pas** de route. Un Use Case est « terminé » quand son mode d'entrée existe, est testé, et que les routes sont protégées par `@requires_permission` (ou `@public_route`, voir `21-middleware-layer.md`).

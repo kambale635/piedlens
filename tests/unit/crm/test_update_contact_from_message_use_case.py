@@ -2,12 +2,12 @@ import unittest
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from contexts.crm.application.update_contact_from_message_use_case import (
+from contexts.crm.application.use_cases.update_contact_from_message_use_case import (
     UpdateContactFromMessageUseCase,
 )
 from contexts.crm.application.exceptions import InvalidContactIdentityException
-from contexts.crm.domain.contact import Contact
-from contexts.crm.domain.contact_status import ContactStatus
+from contexts.crm.domain.entities.contact import Contact
+from contexts.crm.domain.value_objects.contact_status import ContactStatus
 from shared_kernel.value_objects.money import Money
 
 

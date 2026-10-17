@@ -73,3 +73,8 @@ Aucune vérification d'authentification, de tenant, ou de permission ne doit êt
 | RateLimitMiddleware | désactivé ou seuils larges | seuils réels | seuils réels stricts |
 | AuditLoggingMiddleware | actif, logs locaux | actif | actif, rétention longue définie par la politique de conformité |
 | AuthenticationMiddleware | actif (jamais désactivé, même en dev) | actif | actif |
+
+
+## Routes publiques et refus par défaut
+
+Toute route doit déclarer explicitement soit `@requires_permission("<resource>.<action>")`, soit `@public_route` (réservé à l'inscription, la connexion et le rafraîchissement de token). Une route sans aucune des deux déclarations est **refusée par défaut** (`403`), jamais laissée ouverte par oubli. Les routes publiques passent quand même par `RequestIdMiddleware`, `ExceptionHandlingMiddleware`, `RateLimitMiddleware` et `AuditLoggingMiddleware`.

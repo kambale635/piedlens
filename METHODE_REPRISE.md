@@ -57,12 +57,12 @@ Ne jamais afficher, copier dans le code ou commiter un secret. Utiliser les vari
 
 Etat verifie le 2026-09-28 :
 
-- Taches A, B, C et D terminees : Outbox CRM transactionnelle, historique d'achats daté CRM, notifications uniques par période et détection basée sur médiane avec paramètres configurés.
-- Les consumers dedupliquent par `eventId`; l'agregat empeche aussi de compter deux fois un meme `orderId`. Ecritures, historique, notifications et marqueurs idempotents restent dans leurs transactions CRM.
-- Validation au 2026-09-28 : tests unitaires CRM 21/21, tests d'integration CRM 14/14 et `makemigrations crm --check --dry-run` sans derive.
-- Les defaults d'anomalie viennent des settings Django et peuvent être surchargés par merchant; aucun seuil métier fixe n'est défini dans le domaine.
-- Les achats anterieurs a la migration ne sont pas reconstruits : aucun acces aux tables Order Detection n'est autorise.
-- L'implementation provisoire d'anomalie avec 30 jours fixes a ete retiree; le use case final respecte INV-CRM-05/06.
-- Prochain cas CRM catalogue : `MergeContactsUseCase`; les segments/envois gardent des écarts de persistance et de contrat. Le relay Outbox global demeure un placeholder; ne pas prétendre que les événements sont livrés à Redis avant son implémentation et ses tests.
+- CRM : Outbox transactionnelle, historique d'achats CRM, alertes d'anomalie configurées et `MergeContactsUseCase` temps 1/2 sont présents. `INV-CRM-04` autorise exclusivement `OrderStatusChanged (paid_and_delivered)` et l'absorption du snapshot `ContactMerged`.
+- Order Detection : les Use Cases du catalogue déjà couverts, dont le consommateur `ReassignContactReferencesFromContactMergedUseCase`, sont présents. Ce consumer modifie chaque Order/Candidate dans une transaction séparée et marque l'événement après les deux balayages.
+- Dernière validation : tests unitaires CRM 28/28 et intégration CRM 17/17; tests unitaires Order Detection 39/39 et intégration Order Detection 12/12; aucune migration CRM ou Order Detection requise; system checks sans erreur.
+- Le consumer CRM `ContactMerged` additionne le snapshot côté Contact principal avec un marqueur CRM atomique. Le consumer Order Detection consomme uniquement les IDs et ignore le snapshot CRM.
+- Les achats CRM antérieurs à la migration d'historique ne sont pas reconstruits; aucun accès aux tables Order Detection n'est autorisé depuis CRM.
+- **BLOQUANT AVANT MISE EN PRODUCTION** : le relay Outbox et la publication Redis Streams ne sont pas implémentés; les consumers ne sont donc pas branchés à un transport opérationnel. Les tests SQLite ne valident pas les garanties de concurrence PostgreSQL.
+- Les écarts de persistance/contrat des segments et envois CRM signalés précédemment doivent encore être audités. Les schémas PostgreSQL natifs par bounded context restent également à configurer.
 
 Apres chaque tache, actualiser cette section si l'etat de reprise change et consigner les resultats dans `evolution.md`.

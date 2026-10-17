@@ -2,22 +2,22 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
-from contexts.order_detection.application.events import (
+from contexts.order_detection.domain.events.order_detection_events import (
     ReminderCancelled,
     ReminderDeliveryFailed,
     ReminderProposed,
     ReminderSent,
 )
-from contexts.order_detection.application.reminder_delivery import (
+from contexts.order_detection.application.dto.reminder_delivery import (
     ReminderDeliveryMode,
     ReminderDeliveryResult,
 )
-from contexts.order_detection.application.send_scheduled_reminders_use_case import (
+from contexts.order_detection.application.use_cases.send_scheduled_reminders_use_case import (
     SendScheduledRemindersUseCase,
 )
-from contexts.order_detection.domain.order import Order
-from contexts.order_detection.domain.order_status import OrderStatus
-from contexts.order_detection.domain.reminder import Reminder, ReminderStatus, ReminderType
+from contexts.order_detection.domain.entities.order import Order
+from contexts.order_detection.domain.value_objects.order_status import OrderStatus
+from contexts.order_detection.domain.entities.reminder import Reminder, ReminderStatus, ReminderType
 from shared_kernel.value_objects.confidence_score import ConfidenceScore
 from shared_kernel.value_objects.money import Money
 

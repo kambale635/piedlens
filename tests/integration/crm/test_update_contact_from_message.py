@@ -3,15 +3,15 @@ from uuid import uuid4
 
 from django.test import TransactionTestCase
 
-from contexts.crm.application.update_contact_from_message_use_case import (
+from contexts.crm.application.use_cases.update_contact_from_message_use_case import (
     UpdateContactFromMessageUseCase,
 )
-from contexts.crm.infrastructure.django_contact_repository import DjangoContactRepository
-from contexts.crm.infrastructure.django_processed_message_repository import (
+from contexts.crm.infrastructure.persistence.django_contact_repository import DjangoContactRepository
+from contexts.crm.infrastructure.persistence.django_processed_message_repository import (
     DjangoProcessedMessageRepository,
 )
-from contexts.crm.infrastructure.django_unit_of_work import DjangoCRMUnitOfWork
-from contexts.crm.infrastructure.models import ContactRecord, ProcessedMessageRecord
+from contexts.crm.infrastructure.persistence.django_unit_of_work import DjangoCRMUnitOfWork
+from contexts.crm.infrastructure.persistence.models import ContactRecord, ProcessedMessageRecord
 from shared_kernel.value_objects.money import Money
 
 

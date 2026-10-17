@@ -3,25 +3,25 @@ from uuid import uuid4
 
 from django.test import TransactionTestCase, override_settings
 
-from contexts.crm.application.detect_relationship_anomaly_use_case import (
+from contexts.crm.application.use_cases.detect_relationship_anomaly_use_case import (
     DetectRelationshipAnomalyUseCase,
 )
-from contexts.crm.application.events import RelationshipAnomalyDetected
-from contexts.crm.domain.contact import Contact
-from contexts.crm.domain.relationship_anomaly_notification import (
+from contexts.crm.domain.events.crm_events import RelationshipAnomalyDetected
+from contexts.crm.domain.entities.contact import Contact
+from contexts.crm.domain.entities.relationship_anomaly_notification import (
     RelationshipAnomalyNotification,
 )
-from contexts.crm.domain.relationship_anomaly_policy import RelationshipAnomalyPolicy
-from contexts.crm.infrastructure.django_contact_repository import DjangoContactRepository
-from contexts.crm.infrastructure.django_relationship_anomaly_configuration import (
+from contexts.crm.domain.value_objects.relationship_anomaly_policy import RelationshipAnomalyPolicy
+from contexts.crm.infrastructure.persistence.django_contact_repository import DjangoContactRepository
+from contexts.crm.infrastructure.adapters.django_relationship_anomaly_configuration import (
     DjangoRelationshipAnomalyConfiguration,
 )
-from contexts.crm.infrastructure.django_crm_outbox import DjangoCRMOutbox
-from contexts.crm.infrastructure.django_relationship_anomaly_notification_repository import (
+from contexts.crm.infrastructure.messaging.django_crm_outbox import DjangoCRMOutbox
+from contexts.crm.infrastructure.persistence.django_relationship_anomaly_notification_repository import (
     DjangoRelationshipAnomalyNotificationRepository,
 )
-from contexts.crm.infrastructure.django_unit_of_work import DjangoCRMUnitOfWork
-from contexts.crm.infrastructure.models import (
+from contexts.crm.infrastructure.persistence.django_unit_of_work import DjangoCRMUnitOfWork
+from contexts.crm.infrastructure.persistence.models import (
     ContactRecord,
     OutboxEventRecord,
     RelationshipAnomalyNotificationRecord,

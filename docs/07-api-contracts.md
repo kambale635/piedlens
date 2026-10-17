@@ -98,3 +98,18 @@ Chaque erreur 4xx/5xx retourne un corps standard :
 ```json
 { "errorCode": "INVALID_ORDER_TRANSITION", "message": "...", "details": {} }
 ```
+
+
+---
+
+## Contexte : Identity (routes publiques sauf `POST /merchants`)
+- `POST /api/v1/auth/register` : `{ phoneNumber, password, email? }` → 201 `{ userId }`
+- `POST /api/v1/auth/login` : `{ phoneNumber, password }` → 200 `{ accessToken, refreshToken, expiresAt }`
+- `POST /api/v1/auth/refresh` : `{ refreshToken }` → 200 `{ accessToken, expiresAt }`
+- `POST /api/v1/merchants` (authentifiée) : `{ name, country, preferredLanguage, currency }` → 201 `{ merchantId, subscriptionPlan }`
+
+## Contexte : Access Control (toutes protégées par permission)
+- `POST /api/v1/roles` (`role.create`) : `{ name, permissions[] }` → 201 `{ roleId }`
+- `PUT /api/v1/roles/{id}/permissions` (`role.update`) : `{ permissions[] }` → 200
+- `POST /api/v1/role-assignments` (`role.assign`) : `{ userId, roleId, scope }` → 201 `{ roleAssignmentId }`
+- `DELETE /api/v1/role-assignments/{id}` (`role.revoke`) → 200 `{ revokedAt }`

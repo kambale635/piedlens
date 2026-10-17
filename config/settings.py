@@ -11,9 +11,9 @@ ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").sp
 INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
-    "shared_kernel.rules_engine.apps.RulesEngineConfig",
-    "shared_kernel.identity.apps.IdentityConfig",
-    "shared_kernel.access_control.apps.AccessControlConfig",
+    "contexts.rules_engine.apps.RulesEngineConfig",
+    "contexts.identity.apps.IdentityConfig",
+    "contexts.access_control.apps.AccessControlConfig",
     "contexts.platform_connectors.apps.PlatformConnectorsConfig",
     "contexts.backup.apps.BackupConfig",
     "contexts.order_detection.apps.OrderDetectionConfig",
@@ -26,6 +26,13 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "middleware.request_id_middleware.RequestIdMiddleware",
+    "middleware.exception_handling_middleware.ExceptionHandlingMiddleware",
+    "middleware.authentication_middleware.AuthenticationMiddleware",
+    "middleware.tenant_isolation_middleware.TenantIsolationMiddleware",
+    "middleware.permission_middleware.PermissionMiddleware",
+    "middleware.rate_limit_middleware.RateLimitMiddleware",
+    "middleware.audit_logging_middleware.AuditLoggingMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -45,6 +52,9 @@ DATABASES = {
 }
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+CRM_SEGMENT_CACHE_TTL_SECONDS = int(
+    os.environ.get("CRM_SEGMENT_CACHE_TTL_SECONDS", "300")
+)
 CRM_ANOMALY_MIN_PURCHASES = int(os.environ.get("CRM_ANOMALY_MIN_PURCHASES", "3"))
 CRM_ANOMALY_MULTIPLIER = os.environ.get("CRM_ANOMALY_MULTIPLIER", "2.0")
 CRM_ANOMALY_MIN_INACTIVITY_DAYS = int(

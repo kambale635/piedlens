@@ -3,54 +3,64 @@ from uuid import uuid4
 
 from django.test import TransactionTestCase
 
-from contexts.order_detection.application.create_order_from_promoted_detection_use_case import (
+from contexts.order_detection.application.use_cases.create_order_from_promoted_detection_use_case import (
     CreateOrderFromPromotedDetectionUseCase,
 )
-from contexts.order_detection.application.get_dormant_money_dashboard_use_case import (
+from contexts.order_detection.application.use_cases.detect_order_use_case import DetectOrderUseCase
+from contexts.order_detection.application.ports.detection_configuration import DetectionConfiguration
+from contexts.order_detection.application.dto.evaluation_result import EvaluationResult
+from contexts.order_detection.application.use_cases.get_dormant_money_dashboard_use_case import (
     GetDormantMoneyDashboardUseCase,
 )
-from contexts.order_detection.application.list_pending_detection_candidates_use_case import (
+from contexts.order_detection.application.use_cases.list_pending_detection_candidates_use_case import (
     ListPendingDetectionCandidatesUseCase,
 )
-from contexts.order_detection.application.reminder_exceptions import (
+from contexts.order_detection.application.exceptions.reminder_exceptions import (
     ReminderAlreadyScheduledException,
 )
-from contexts.order_detection.application.schedule_reminder_use_case import (
+from contexts.order_detection.application.use_cases.schedule_reminder_use_case import (
     ScheduleReminderUseCase,
 )
-from contexts.order_detection.application.reminder_delivery import (
+from contexts.order_detection.application.dto.reminder_delivery import (
     ReminderDeliveryMode,
     ReminderDeliveryResult,
 )
-from contexts.order_detection.application.send_scheduled_reminders_use_case import (
+from contexts.order_detection.application.use_cases.send_scheduled_reminders_use_case import (
     SendScheduledRemindersUseCase,
 )
-from contexts.order_detection.application.events import DetectionCandidatePromoted
-from contexts.order_detection.application.validate_or_reject_detection_use_case import (
+from contexts.order_detection.domain.events.order_detection_events import DetectionCandidatePromoted
+from contexts.order_detection.domain.events.order_detection_events import ContactMerged
+from contexts.order_detection.application.use_cases.reassign_contact_references_from_contact_merged_use_case import (
+    ReassignContactReferencesFromContactMergedUseCase,
+)
+from contexts.order_detection.application.use_cases.validate_or_reject_detection_use_case import (
     ValidateOrRejectDetectionUseCase,
 )
-from contexts.order_detection.application.update_order_status_use_case import (
+from contexts.order_detection.application.use_cases.update_order_status_use_case import (
     UpdateOrderStatusUseCase,
 )
-from contexts.order_detection.domain.detection_candidate import DetectionCandidate
-from contexts.order_detection.domain.reminder import Reminder, ReminderType
-from contexts.order_detection.infrastructure.django_detection_candidate_repository import (
+from contexts.order_detection.domain.entities.detection_candidate import DetectionCandidate
+from contexts.order_detection.domain.entities.reminder import Reminder, ReminderType
+from contexts.order_detection.infrastructure.persistence.django_detection_candidate_repository import (
     DjangoDetectionCandidateRepository,
 )
-from contexts.order_detection.infrastructure.django_order_detection_outbox import (
+from contexts.order_detection.infrastructure.persistence.django_contact_reference_redirect_repository import (
+    DjangoContactReferenceRedirectRepository,
+)
+from contexts.order_detection.infrastructure.messaging.django_order_detection_outbox import (
     DjangoOrderDetectionOutbox,
 )
-from contexts.order_detection.infrastructure.django_order_repository import (
+from contexts.order_detection.infrastructure.persistence.django_order_repository import (
     DjangoOrderRepository,
 )
-from contexts.order_detection.infrastructure.django_processed_event_repository import (
+from contexts.order_detection.infrastructure.persistence.django_processed_event_repository import (
     DjangoProcessedEventRepository,
 )
-from contexts.order_detection.infrastructure.django_unit_of_work import (
+from contexts.order_detection.infrastructure.persistence.django_unit_of_work import (
     DjangoOrderDetectionUnitOfWork,
 )
-from contexts.order_detection.infrastructure.system_clock import SystemClock
-from contexts.order_detection.infrastructure.models import (
+from contexts.order_detection.infrastructure.adapters.system_clock import SystemClock
+from contexts.order_detection.infrastructure.persistence.models import (
     OrderRecord,
     OutboxEventRecord,
     ProcessedEventRecord,
@@ -85,6 +95,7 @@ class DjangoOrderDetectionAcidTests(TransactionTestCase):
         self.use_case = CreateOrderFromPromotedDetectionUseCase(
             order_repository=self.order_repository,
             processed_events=self.processed_events,
+            contact_redirects=DjangoContactReferenceRedirectRepository(),
             unit_of_work=self.unit_of_work,
             outbox=self.outbox,
         )
@@ -123,6 +134,56 @@ class DjangoOrderDetectionAcidTests(TransactionTestCase):
         self.assertEqual(OrderRecord.objects.count(), 1)
         self.assertEqual(OutboxEventRecord.objects.count(), 1)
         self.assertEqual(ProcessedEventRecord.objects.count(), 1)
+
+    def test_message_evaluation_redelivery_creates_order_outbox_and_marker_once(self):
+        class FixedDetectionConfiguration:
+            def for_merchant(self, merchant_id):
+                return DetectionConfiguration(
+                    confidence_threshold=70,
+                    correlation_window_days=3,
+                )
+
+        use_case = DetectOrderUseCase(
+            processed_events=self.processed_events,
+            contact_redirects=DjangoContactReferenceRedirectRepository(),
+            order_repository=self.order_repository,
+            candidate_repository=DjangoDetectionCandidateRepository(),
+            configuration=FixedDetectionConfiguration(),
+            unit_of_work=self.unit_of_work,
+            outbox=self.outbox,
+        )
+        event_id = uuid4()
+        contact_id = uuid4()
+        merchant_id = uuid4()
+        source_message_id = uuid4()
+        evaluation = EvaluationResult(
+            confidence_score=ConfidenceScore(85),
+            intent="purchase",
+            amount=Money("81.00", "USD"),
+        )
+        arguments = {
+            "merchant_id": merchant_id,
+            "event_id": event_id,
+            "contact_id": contact_id,
+            "evaluation_result": evaluation,
+            "source_message_id": source_message_id,
+            "source_message_timestamp": datetime.now(timezone.utc),
+        }
+
+        first = use_case.execute(**arguments)
+        replay = use_case.execute(**arguments)
+
+        self.assertEqual(first.outcome, "order_created")
+        self.assertEqual(replay.outcome, "already_processed")
+        self.assertEqual(OrderRecord.objects.count(), 1)
+        self.assertEqual(OutboxEventRecord.objects.count(), 1)
+        self.assertEqual(
+            ProcessedEventRecord.objects.filter(
+                event_id=event_id,
+                consumer_name=use_case.CONSUMER_NAME,
+            ).count(),
+            1,
+        )
 
     def test_candidate_decision_and_outbox_roll_back_together(self):
         candidate = DetectionCandidate.create(
@@ -187,8 +248,8 @@ class DjangoOrderDetectionAcidTests(TransactionTestCase):
     def test_dormant_dashboard_filters_by_merchant_age_and_open_status(self):
         from datetime import timedelta
 
-        from contexts.order_detection.domain.order import Order
-        from contexts.order_detection.domain.order_status import OrderStatus
+        from contexts.order_detection.domain.entities.order import Order
+        from contexts.order_detection.domain.value_objects.order_status import OrderStatus
 
         now = datetime.now(timezone.utc)
         older_order = Order.detect(
@@ -256,8 +317,8 @@ class DjangoOrderDetectionAcidTests(TransactionTestCase):
     def test_reminder_and_outbox_commit_once_and_database_blocks_duplicate(self):
         from datetime import timedelta
 
-        from contexts.order_detection.domain.reminder import ReminderType
-        from contexts.order_detection.infrastructure.django_reminder_repository import (
+        from contexts.order_detection.domain.entities.reminder import ReminderType
+        from contexts.order_detection.infrastructure.persistence.django_reminder_repository import (
             DjangoReminderRepository,
         )
 
@@ -293,7 +354,7 @@ class DjangoOrderDetectionAcidTests(TransactionTestCase):
     def test_scheduled_worker_claims_and_commits_sent_marker_and_outbox(self):
         from datetime import timedelta
 
-        from contexts.order_detection.infrastructure.django_reminder_repository import (
+        from contexts.order_detection.infrastructure.persistence.django_reminder_repository import (
             DjangoReminderRepository,
         )
 
@@ -363,7 +424,7 @@ class DjangoOrderDetectionAcidTests(TransactionTestCase):
     def test_expired_processing_reminder_is_claimed_by_database_adapter(self):
         from datetime import timedelta
 
-        from contexts.order_detection.infrastructure.django_reminder_repository import (
+        from contexts.order_detection.infrastructure.persistence.django_reminder_repository import (
             DjangoReminderRepository,
         )
 
@@ -396,7 +457,7 @@ class DjangoOrderDetectionAcidTests(TransactionTestCase):
     def test_pending_candidate_listing_is_merchant_scoped_and_paginated(self):
         from datetime import timedelta
 
-        from contexts.order_detection.infrastructure.django_detection_candidate_repository import (
+        from contexts.order_detection.infrastructure.persistence.django_detection_candidate_repository import (
             DjangoDetectionCandidateRepository,
         )
 
@@ -444,8 +505,195 @@ class DjangoOrderDetectionAcidTests(TransactionTestCase):
         self.assertEqual(len(result.candidates), 1)
         self.assertEqual(result.candidates[0].candidate_id, candidates[2].id)
 
+    def test_contact_merge_consumer_reassigns_each_aggregate_and_is_idempotent(self):
+        from contexts.order_detection.domain.entities.order import Order
+        from contexts.order_detection.domain.value_objects.order_status import OrderStatus
+
+        merged_contact_id = uuid4()
+        primary_contact_id = uuid4()
+        merchant_id = uuid4()
+        order = Order.detect(
+            merchant_id=merchant_id,
+            contact_id=merged_contact_id,
+            detected_amount=Money("18.00", "USD"),
+            confidence_score=ConfidenceScore(85),
+            source_message_id=uuid4(),
+        )
+        candidate = DetectionCandidate.create(
+            merchant_id=merchant_id,
+            contact_id=merged_contact_id,
+            detected_amount=Money("22.00", "XOF"),
+            confidence_score=ConfidenceScore(60),
+            source_message_id=uuid4(),
+        )
+        candidate.reject()
+        unrelated_order = Order.detect(
+            merchant_id=merchant_id,
+            contact_id=uuid4(),
+            detected_amount=Money("30.00", "USD"),
+            confidence_score=ConfidenceScore(85),
+            source_message_id=uuid4(),
+        )
+        with self.unit_of_work:
+            self.order_repository.save(order)
+            self.order_repository.save(unrelated_order)
+            DjangoDetectionCandidateRepository().save(candidate)
+
+        event = ContactMerged(
+            event_id=uuid4(),
+            merchant_id=merchant_id,
+            primary_contact_id=primary_contact_id,
+            merged_contact_id=merged_contact_id,
+        )
+        use_case = ReassignContactReferencesFromContactMergedUseCase(
+            order_repository=self.order_repository,
+            candidate_repository=DjangoDetectionCandidateRepository(),
+            processed_events=self.processed_events,
+            redirects=DjangoContactReferenceRedirectRepository(),
+            unit_of_work=self.unit_of_work,
+        )
+
+        first = use_case.execute(event)
+        replay = use_case.execute(event)
+
+        order_record = OrderRecord.objects.get(id=order.id)
+        candidate_record = DetectionCandidateRecord.objects.get(id=candidate.id)
+        unrelated_record = OrderRecord.objects.get(id=unrelated_order.id)
+        self.assertEqual((first.reassigned_order_count, first.reassigned_candidate_count), (1, 1))
+        self.assertEqual((replay.reassigned_order_count, replay.reassigned_candidate_count), (0, 0))
+        self.assertEqual(order_record.contact_id, primary_contact_id)
+        self.assertEqual(candidate_record.contact_id, primary_contact_id)
+        self.assertEqual(candidate_record.status, "rejected")
+        self.assertEqual(unrelated_record.contact_id, unrelated_order.contact_id)
+        self.assertEqual(
+            ProcessedEventRecord.objects.filter(
+                event_id=event.event_id,
+                consumer_name=use_case.CONSUMER_NAME,
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            DjangoContactReferenceRedirectRepository().resolve(
+                merchant_id,
+                merged_contact_id,
+            ),
+            primary_contact_id,
+        )
+
+        class FixedDetectionConfiguration:
+            def for_merchant(self, detected_merchant_id):
+                return DetectionConfiguration(
+                    confidence_threshold=70,
+                    correlation_window_days=3,
+                )
+
+        detection = DetectOrderUseCase(
+            processed_events=self.processed_events,
+            contact_redirects=DjangoContactReferenceRedirectRepository(),
+            order_repository=self.order_repository,
+            candidate_repository=DjangoDetectionCandidateRepository(),
+            configuration=FixedDetectionConfiguration(),
+            unit_of_work=self.unit_of_work,
+            outbox=self.outbox,
+        )
+        late_result = detection.execute(
+            merchant_id=merchant_id,
+            event_id=uuid4(),
+            contact_id=merged_contact_id,
+            evaluation_result=EvaluationResult(
+                confidence_score=ConfidenceScore(90),
+                intent="purchase",
+                amount=Money("44.00", "USD"),
+            ),
+            source_message_id=uuid4(),
+            source_message_timestamp=datetime.now(timezone.utc),
+        )
+        late_order = OrderRecord.objects.get(id=late_result.order_id)
+        self.assertEqual(late_order.contact_id, primary_contact_id)
+
+    def test_contact_merge_consumer_resumes_after_partial_failure(self):
+        merged_contact_id = uuid4()
+        primary_contact_id = uuid4()
+        merchant_id = uuid4()
+        order = self._make_order()
+        order.merchant_id = merchant_id
+        order.contact_id = merged_contact_id
+        candidate = DetectionCandidate.create(
+            merchant_id=merchant_id,
+            contact_id=merged_contact_id,
+            detected_amount=Money("22.00", "XOF"),
+            confidence_score=ConfidenceScore(60),
+            source_message_id=uuid4(),
+        )
+        candidate_repository = DjangoDetectionCandidateRepository()
+        with self.unit_of_work:
+            self.order_repository.save(order)
+            candidate_repository.save(candidate)
+
+        class FailOnceCandidateRepository:
+            def __init__(inner_self):
+                inner_self.failed = False
+
+            def find_ids_by_contact(inner_self, contact_id):
+                if not inner_self.failed:
+                    inner_self.failed = True
+                    raise RuntimeError("temporary candidate scan failure")
+                return candidate_repository.find_ids_by_contact(contact_id)
+
+            def find_for_update_by_id(inner_self, candidate_id):
+                return candidate_repository.find_for_update_by_id(candidate_id)
+
+            def save(inner_self, value):
+                candidate_repository.save(value)
+
+        event = ContactMerged(
+            event_id=uuid4(),
+            merchant_id=merchant_id,
+            primary_contact_id=primary_contact_id,
+            merged_contact_id=merged_contact_id,
+        )
+        use_case = ReassignContactReferencesFromContactMergedUseCase(
+            order_repository=self.order_repository,
+            candidate_repository=FailOnceCandidateRepository(),
+            processed_events=self.processed_events,
+            redirects=DjangoContactReferenceRedirectRepository(),
+            unit_of_work=self.unit_of_work,
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "temporary candidate scan failure"):
+            use_case.execute(event)
+
+        self.assertEqual(
+            OrderRecord.objects.get(id=order.id).contact_id,
+            primary_contact_id,
+        )
+        self.assertEqual(
+            DetectionCandidateRecord.objects.get(id=candidate.id).contact_id,
+            merged_contact_id,
+        )
+        self.assertFalse(
+            ProcessedEventRecord.objects.filter(
+                event_id=event.event_id,
+                consumer_name=use_case.CONSUMER_NAME,
+            ).exists()
+        )
+
+        result = use_case.execute(event)
+
+        self.assertEqual((result.reassigned_order_count, result.reassigned_candidate_count), (0, 1))
+        self.assertEqual(
+            DetectionCandidateRecord.objects.get(id=candidate.id).contact_id,
+            primary_contact_id,
+        )
+        self.assertTrue(
+            ProcessedEventRecord.objects.filter(
+                event_id=event.event_id,
+                consumer_name=use_case.CONSUMER_NAME,
+            ).exists()
+        )
+
     def _make_order(self):
-        from contexts.order_detection.domain.order import Order
+        from contexts.order_detection.domain.entities.order import Order
 
         return Order.detect(
             merchant_id=self.event.merchant_id,
@@ -458,7 +706,7 @@ class DjangoOrderDetectionAcidTests(TransactionTestCase):
         )
 
     def _make_order_detected_event(self, order):
-        from contexts.order_detection.application.events import OrderDetected
+        from contexts.order_detection.domain.events.order_detection_events import OrderDetected
 
         return OrderDetected(
             order_id=order.id,

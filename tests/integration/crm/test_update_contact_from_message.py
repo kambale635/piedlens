@@ -12,6 +12,13 @@ from contexts.crm.infrastructure.persistence.django_processed_message_repository
 )
 from contexts.crm.infrastructure.persistence.django_unit_of_work import DjangoCRMUnitOfWork
 from contexts.crm.infrastructure.persistence.models import ContactRecord, ProcessedMessageRecord
+from contexts.crm.infrastructure.adapters.django_contact_defaults_provider import (
+    DjangoContactDefaultsProvider,
+)
+from contexts.identity.infrastructure.adapters.django_merchant_currency_reader import (
+    DjangoMerchantCurrencyReader,
+)
+from contexts.identity.infrastructure.persistence.models import MerchantRecord
 from shared_kernel.value_objects.money import Money
 
 
@@ -100,3 +107,19 @@ class UpdateContactFromMessageIntegrationTests(TransactionTestCase):
 
         self.assertNotEqual(first.contact_id, second.contact_id)
         self.assertEqual(ContactRecord.objects.count(), 2)
+
+    def test_contact_defaults_read_primary_currency_through_shared_port(self):
+        MerchantRecord.objects.create(
+            id=self.merchant_id,
+            name="Currency test merchant",
+            country="FR",
+            preferred_language="fr",
+            currency="EUR",
+            subscription_plan="starter",
+            created_at=datetime(2026, 9, 20, tzinfo=timezone.utc),
+        )
+        defaults = DjangoContactDefaultsProvider(DjangoMerchantCurrencyReader())
+
+        initial_spending = defaults.initial_total_spent(self.merchant_id)
+
+        self.assertEqual(initial_spending, Money(0, "EUR"))

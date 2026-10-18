@@ -51,8 +51,8 @@ class UpdateContactFromOrderUseCase:
     def __init__(
         self,
         contact_repository: IContactRepository,
-        loyalty_score_calculator: ILoyaltyScoreCalculator,
-        defaults_provider: IContactDefaultsProvider,
+        loyalty_score_calculator: ILoyaltyScoreCalculator | None,
+        defaults_provider: IContactDefaultsProvider | None,
         processed_messages: IProcessedMessageRepository,
         unit_of_work: ICRMUnitOfWork,
     ) -> None:
@@ -87,10 +87,11 @@ class UpdateContactFromOrderUseCase:
 
             applied = contact.record_paid_order(order_id, order_amount, updated_at)
             if applied:
-                primary_currency = self._defaults_provider.primary_currency(contact.merchant_id)
-                contact.update_loyalty_score(
-                    self._loyalty_score_calculator.calculate(contact, primary_currency)
-                )
+                if self._loyalty_score_calculator is not None:
+                    primary_currency = self._defaults_provider.primary_currency(contact.merchant_id)
+                    contact.update_loyalty_score(
+                        self._loyalty_score_calculator.calculate(contact, primary_currency)
+                    )
                 self._contact_repository.save(contact)
             self._processed_messages.mark_processed(event_id, self.CONSUMER_NAME)
 

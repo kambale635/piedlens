@@ -12,7 +12,7 @@ def configured_platform_gateway(platform_type: str):
         return MockPlatformGateway()
     if adapter == "real":
         raise RuntimeError(
-            f"The real {platform_type} adapter is not implemented; configure credentials "
-            "and install the provider adapter before selecting WHATSAPP_ADAPTER=real."
+            f"The real {platform_type} adapter is not implemented; "
+            f"{platform_type.upper()}_ADAPTER=real cannot be used yet."
         )
     raise RuntimeError(f"Unsupported {platform_type} adapter: {adapter}")

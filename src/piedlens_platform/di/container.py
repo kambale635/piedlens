@@ -170,6 +170,20 @@ from contexts.crm.infrastructure.adapters.django_contact_defaults_provider impor
 from contexts.platform_connectors.application.use_cases.connect_platform_use_case import (
     ConnectPlatformUseCase,
 )
+from contexts.platform_connectors.application.ports.channel_capabilities import (
+    IChannelHealthChecker,
+    IMessageSender,
+    IMediaFetcher,
+    IMessageRetriever,
+    IOAuthCodeExchanger,
+    ITokenRefresher,
+    IWebhookMessageNormalizer,
+    IWebhookSignatureVerifier,
+)
+from contexts.platform_connectors.application.ports.channel_config import IChannelAvailability
+from contexts.platform_connectors.application.services.channel_provider_registry import (
+    ChannelProviderRegistry,
+)
 from contexts.platform_connectors.application.use_cases.handle_incoming_webhook_use_case import (
     HandleIncomingWebhookUseCase,
 )
@@ -194,14 +208,22 @@ from contexts.platform_connectors.infrastructure.adapters.django_connection_usag
 from contexts.platform_connectors.infrastructure.adapters.django_webhook_signature_verifier import (
     DjangoWebhookSignatureVerifier,
 )
-from contexts.platform_connectors.infrastructure.adapters.mock_platform_gateway import (
-    MockPlatformGateway,
-)
-from contexts.platform_connectors.infrastructure.adapters.environment_platform_gateway import (
-    configured_platform_gateway,
+from contexts.platform_connectors.infrastructure.adapters.mock_channel_capabilities import (
+    MockChannelHealthChecker,
+    MockMediaFetcher,
+    MockMessageRetriever,
+    MockMessageSender,
+    MockOAuthCodeExchanger,
+    MockTokenRefresher,
 )
 from contexts.platform_connectors.infrastructure.adapters.mock_webhook_payload_mapper import (
     MockWebhookPayloadMapper,
+)
+from contexts.platform_connectors.infrastructure.persistence.django_channel_config_reader import (
+    DjangoChannelConfigReader,
+)
+from contexts.identity.infrastructure.adapters.django_merchant_plan_reader import (
+    DjangoMerchantPlanReader,
 )
 from contexts.platform_connectors.infrastructure.adapters.system_platform_clock import (
     SystemPlatformClock,
@@ -303,6 +325,54 @@ from contexts.platform_connectors.infrastructure.adapters.django_connection_cons
 
 
 class ApplicationContainer:
+    @staticmethod
+    def channel_provider_registry() -> ChannelProviderRegistry:
+        """Build configured channel adapters and reject unimplemented real providers."""
+        channel_codes = ("whatsapp", "instagram", "facebook")
+        for channel_code in channel_codes:
+            adapter = settings.PLATFORM_ADAPTERS.get(channel_code, "mock")
+            if adapter != "mock":
+                variable_name = f"{channel_code.upper()}_ADAPTER"
+                if adapter == "real":
+                    raise RuntimeError(
+                        f"The real {channel_code} adapter is not implemented; "
+                        f"{variable_name}=real cannot be used yet."
+                    )
+                raise RuntimeError(
+                    f"Unsupported {channel_code} adapter '{adapter}' in {variable_name}."
+                )
+
+        oauth_exchanger = MockOAuthCodeExchanger()
+        message_retriever = MockMessageRetriever()
+        token_refresher = MockTokenRefresher()
+        message_sender = MockMessageSender()
+        media_fetcher = MockMediaFetcher()
+        health_checker = MockChannelHealthChecker()
+        webhook_mapper = MockWebhookPayloadMapper()
+        signature_verifier = DjangoWebhookSignatureVerifier()
+        return ChannelProviderRegistry(
+            {
+                channel_code: {
+                    IOAuthCodeExchanger: oauth_exchanger,
+                    IMessageRetriever: message_retriever,
+                    ITokenRefresher: token_refresher,
+                    IMessageSender: message_sender,
+                    IMediaFetcher: media_fetcher,
+                    IChannelHealthChecker: health_checker,
+                    IWebhookSignatureVerifier: signature_verifier,
+                    IWebhookMessageNormalizer: webhook_mapper,
+                }
+                for channel_code in channel_codes
+            }
+        )
+
+    @staticmethod
+    def channel_availability() -> DjangoChannelConfigReader:
+        """Resolve configured plan/country availability through shared Identity ports."""
+        return DjangoChannelConfigReader(
+            merchant_plans=DjangoMerchantPlanReader(),
+            merchant_countries=DjangoMerchantCountryReader(),
+        )
     """Construct Order Detection use cases with production Django adapters.
 
     This is the only module that directly instantiates infrastructure adapters.
@@ -613,10 +683,11 @@ class ApplicationContainer:
 
     @staticmethod
     def connect_platform() -> ConnectPlatformUseCase:
-        """Wire the mock provider and shared plan/usage ports for connection creation."""
+        """Wire capability-based providers and shared plan/configuration ports for channels."""
         return ConnectPlatformUseCase(
             connections=DjangoPlatformConnectionRepository(),
-            gateway=configured_platform_gateway("whatsapp"),
+            providers=ApplicationContainer.channel_provider_registry(),
+            channel_availability=ApplicationContainer.channel_availability(),
             cipher=DjangoAesTokenCipher(),
             usage_reader=DjangoConnectionUsageReader(),
             plan_reader=DjangoConnectionPlanReader(),
@@ -631,8 +702,7 @@ class ApplicationContainer:
         return HandleIncomingWebhookUseCase(
             connections=DjangoPlatformConnectionRepository(),
             messages=DjangoMessageRepository(),
-            verifier=DjangoWebhookSignatureVerifier(),
-            mapper=MockWebhookPayloadMapper(),
+            providers=ApplicationContainer.channel_provider_registry(),
             unit_of_work=DjangoPlatformConnectorsUnitOfWork(),
             outbox=DjangoPlatformConnectorsOutbox(),
         )
@@ -654,7 +724,7 @@ class ApplicationContainer:
         return SyncMessagesUseCase(
             connections=DjangoPlatformConnectionRepository(),
             messages=DjangoMessageRepository(),
-            gateway=configured_platform_gateway("whatsapp"),
+            providers=ApplicationContainer.channel_provider_registry(),
             unit_of_work=DjangoPlatformConnectorsUnitOfWork(),
             outbox=DjangoPlatformConnectorsOutbox(),
             clock=SystemPlatformClock(),
@@ -673,7 +743,7 @@ class ApplicationContainer:
         """Wire token refresh while keeping plaintext credentials inside adapters."""
         return RefreshTokensUseCase(
             connections=DjangoPlatformConnectionRepository(),
-            gateway=configured_platform_gateway("whatsapp"),
+            providers=ApplicationContainer.channel_provider_registry(),
             cipher=DjangoAesTokenCipher(),
             unit_of_work=DjangoPlatformConnectorsUnitOfWork(),
             outbox=DjangoPlatformConnectorsOutbox(),

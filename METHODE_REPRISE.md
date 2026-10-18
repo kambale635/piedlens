@@ -2,6 +2,15 @@
 
 Ce document guide toute nouvelle conversation ou reprise de session. Il complete `prompt_demarage.txt`, qui sert au demarrage initial du projet; il ne le remplace pas. Ne jamais deduire l'etat du code a partir d'un ancien resume seul : verifier les fichiers et les tests actuels.
 
+## 2026-10-18 — Point de reprise apres l'etape 3a
+
+- Derniere etape terminee : 3a, canaux extensibles de Platform Connectors. Le commit de cette etape est a creer apres verification des chemins stages.
+- Prochaine action : etape 4, securite; lire `docs/27-security-architecture.md` apres sa creation et mettre a jour le registre des noms de variables d'environnement.
+- Validation ciblee : `./venv/bin/python manage.py test tests.unit.platform_connectors tests.integration.platform_connectors tests.architecture.test_architecture_boundaries --settings=config.test_settings -v 1` (27/27); `./venv/bin/python manage.py makemigrations --check --dry-run --settings=config.test_settings` (aucun changement).
+- Suite complete de cette etape : `./venv/bin/python manage.py test tests --settings=config.test_settings -v 1` (155 tests, 1 ignore). Les settings de test utilisent SQLite : ce resultat ne prouve pas les garanties PostgreSQL.
+- Pieges connus : Compose ne peut pas etre evalue sans `DJANGO_SECRET_KEY` et `POSTGRES_PASSWORD` dans l'environnement; ne pas lire/afficher `.env`. PostgreSQL local sur 5432 exige un mot de passe; le conteneur `garage_postgres` sur 5433 est un autre projet. Redis local sur 6379 repond `PONG`.
+- Les adaptateurs reels ne sont pas implementes. `WHATSAPP_ADAPTER`, `INSTAGRAM_ADAPTER` et `FACEBOOK_ADAPTER` restent `mock` par defaut; `real` echoue clairement. Aucun identifiant tiers requis pour la suite mock.
+
 ## 1. Retrouver le bon etat
 
 1. Confirmer le dossier racine du workspace et identifier les fichiers reellement presents. Ne pas supposer que Git, Docker, PostgreSQL ou des services locaux sont disponibles.

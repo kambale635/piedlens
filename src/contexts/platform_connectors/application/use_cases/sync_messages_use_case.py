@@ -8,9 +8,10 @@ from ..ports.platform_ports import (
     IPlatformConnectorsOutbox,
     IPlatformConnectorsUnitOfWork,
     IPlatformConnectionRepository,
-    IPlatformGateway,
     IMessageRepository,
 )
+from ..ports.channel_capabilities import IMessageRetriever
+from ..ports.channel_provider_registry import IChannelProviderRegistry
 from ...domain.entities.platform_connection import PlatformConnection
 from ...domain.events.platform_events import MessageReceived
 
@@ -36,7 +37,7 @@ class SyncMessagesUseCase:
         self,
         connections: IPlatformConnectionRepository,
         messages: IMessageRepository,
-        gateway: IPlatformGateway,
+        providers: IChannelProviderRegistry,
         unit_of_work: IPlatformConnectorsUnitOfWork,
         outbox: IPlatformConnectorsOutbox,
         clock: IPlatformClock,
@@ -44,7 +45,7 @@ class SyncMessagesUseCase:
         """Receive all persistence, provider, transaction and time dependencies."""
         self._connections = connections
         self._messages = messages
-        self._gateway = gateway
+        self._providers = providers
         self._unit_of_work = unit_of_work
         self._outbox = outbox
         self._clock = clock
@@ -55,7 +56,8 @@ class SyncMessagesUseCase:
         if connection is None:
             raise PlatformConnectionNotFoundException("Platform connection was not found.")
         try:
-            fetched_messages = self._gateway.fetch_messages(connection, since)
+            retriever = self._providers.require(connection.platform_type.value, IMessageRetriever)
+            fetched_messages = retriever.fetch_messages(connection, since)
         except Exception:
             return SyncMessagesResult(0, connection.last_synced_at, "failed")
 

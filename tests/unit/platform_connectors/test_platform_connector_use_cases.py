@@ -22,6 +22,16 @@ from contexts.platform_connectors.application.use_cases.sync_active_connections_
 from contexts.platform_connectors.application.use_cases.sync_messages_use_case import (
     SyncMessagesResult,
 )
+from contexts.platform_connectors.application.ports.channel_capabilities import (
+    IOAuthCodeExchanger,
+    IMessageRetriever,
+    ITokenRefresher,
+    IWebhookMessageNormalizer,
+    IWebhookSignatureVerifier,
+)
+from contexts.platform_connectors.application.services.channel_provider_registry import (
+    ChannelProviderRegistry,
+)
 from contexts.platform_connectors.domain.entities.message import Message
 from contexts.platform_connectors.domain.entities.platform_connection import PlatformConnection
 from contexts.platform_connectors.domain.value_objects.connection_status import ConnectionStatus
@@ -87,6 +97,12 @@ class FakeGateway:
     def exchange_oauth_code(self, platform_type, oauth_code, external_account_id):
         return "secret-token", external_account_id or "external-1"
 
+    def fetch_messages(self, connection, since):
+        return []
+
+    def refresh_access_token(self, connection):
+        return "replacement-token"
+
 
 class FakeVerifier:
     def __init__(self, valid):
@@ -94,6 +110,26 @@ class FakeVerifier:
 
     def verify(self, platform_type, raw_body, signature):
         return self.valid
+
+
+class FakeChannelAvailability:
+    def is_enabled_for_merchant(self, channel_code, merchant_id):
+        return True
+
+
+def _registry(gateway=None, verifier=None, mapper=None, channel_code="whatsapp"):
+    gateway = gateway or FakeGateway()
+    return ChannelProviderRegistry(
+        {
+            channel_code: {
+                IOAuthCodeExchanger: gateway,
+                IMessageRetriever: gateway,
+                ITokenRefresher: gateway,
+                IWebhookSignatureVerifier: verifier or FakeVerifier(True),
+                IWebhookMessageNormalizer: mapper or FakeMapper([]),
+            }
+        }
+    )
 
 
 class FakeMapper:
@@ -104,6 +140,9 @@ class FakeMapper:
     def map_messages(self, connection, payload):
         self.calls += 1
         return self.messages
+
+    def normalize(self, connection, payload):
+        return self.map_messages(connection, payload)
 
 
 class PlatformConnectorUseCaseTests(unittest.TestCase):
@@ -123,7 +162,8 @@ class PlatformConnectorUseCaseTests(unittest.TestCase):
         gateway = FakeGateway()
         use_case = ConnectPlatformUseCase(
             connections=FakeConnections(),
-            gateway=gateway,
+            providers=_registry(gateway=gateway),
+            channel_availability=FakeChannelAvailability(),
             cipher=FakeCipher(),
             usage_reader=type("Usage", (), {"count_active_connections": lambda *_: 1})(),
             plan_reader=type("Plan", (), {"active_connection_limit": lambda *_: 1})(),
@@ -140,7 +180,8 @@ class PlatformConnectorUseCaseTests(unittest.TestCase):
         outbox = FakeOutbox()
         use_case = ConnectPlatformUseCase(
             connections=connections,
-            gateway=FakeGateway(),
+            providers=_registry(),
+            channel_availability=FakeChannelAvailability(),
             cipher=FakeCipher(),
             usage_reader=type("Usage", (), {"count_active_connections": lambda *_: 0})(),
             plan_reader=type("Plan", (), {"active_connection_limit": lambda *_: 1})(),
@@ -161,8 +202,7 @@ class PlatformConnectorUseCaseTests(unittest.TestCase):
         use_case = HandleIncomingWebhookUseCase(
             connections=FakeConnections([self.connection]),
             messages=FakeMessageRepository(),
-            verifier=FakeVerifier(False),
-            mapper=mapper,
+            providers=_registry(verifier=FakeVerifier(False), mapper=mapper),
             unit_of_work=FakeUnitOfWork(),
             outbox=FakeOutbox(),
         )
@@ -187,8 +227,7 @@ class PlatformConnectorUseCaseTests(unittest.TestCase):
         use_case = HandleIncomingWebhookUseCase(
             connections=FakeConnections([self.connection]),
             messages=repository,
-            verifier=FakeVerifier(True),
-            mapper=FakeMapper([message]),
+            providers=_registry(verifier=FakeVerifier(True), mapper=FakeMapper([message])),
             unit_of_work=FakeUnitOfWork(),
             outbox=outbox,
         )
@@ -235,7 +274,7 @@ class PlatformConnectorUseCaseTests(unittest.TestCase):
         connections = FakeConnections([self.connection])
         use_case = RefreshTokensUseCase(
             connections,
-            RefreshingGateway(),
+            _registry(gateway=RefreshingGateway()),
             FakeCipher(),
             FakeUnitOfWork(),
             FakeOutbox(),
@@ -247,6 +286,74 @@ class PlatformConnectorUseCaseTests(unittest.TestCase):
         self.assertEqual(result["connection_status"], "active")
         self.assertEqual(self.connection.encrypted_access_token.value, "encrypted:replacement-secret")
 
+    def test_fake_channel_runs_connect_and_webhook_pipeline_without_other_contexts(self):
+        channel_code = "fake_channel"
+        fake_connection = PlatformConnection(
+            id=uuid4(),
+            merchant_id=self.merchant_id,
+            platform_type=PlatformType(channel_code),
+            external_account_id="fake-account",
+            encrypted_access_token=EncryptedToken("opaque"),
+            status=ConnectionStatus.ACTIVE,
+            consent_given_at=None,
+        )
+        connections = FakeConnections()
+        connect_outbox = FakeOutbox()
+        registry = _registry(
+            gateway=FakeGateway(),
+            mapper=FakeMapper(
+                [
+                    Message(
+                        id=uuid4(),
+                        platform_connection_id=fake_connection.id,
+                        merchant_id=self.merchant_id,
+                        external_message_id="external-1",
+                        external_sender_id="sender-1",
+                        display_name="Customer",
+                        text_content="je prends 3 sacs",
+                        received_at=FakeClock().now_utc(),
+                    )
+                ]
+            ),
+            channel_code=channel_code,
+        )
+        connect = ConnectPlatformUseCase(
+            connections=connections,
+            providers=registry,
+            channel_availability=FakeChannelAvailability(),
+            cipher=FakeCipher(),
+            usage_reader=type("Usage", (), {"count_active_connections": lambda *_: 0})(),
+            plan_reader=type("Plan", (), {"active_connection_limit": lambda *_: 3})(),
+            unit_of_work=FakeUnitOfWork(),
+            outbox=connect_outbox,
+            clock=FakeClock(),
+        )
+        created = connect.execute(self.merchant_id, channel_code, "fake-code")
+        connection = connections.find_by_id(created["platform_connection_id"])
+        connection.platform_type = PlatformType(channel_code)
+        message_repository = FakeMessageRepository()
+        message_outbox = FakeOutbox()
+        webhook = HandleIncomingWebhookUseCase(
+            connections=FakeConnections([connection]),
+            messages=message_repository,
+            providers=registry,
+            unit_of_work=FakeUnitOfWork(),
+            outbox=message_outbox,
+        )
+
+        result = webhook.execute(
+            channel_code,
+            json.dumps({"platformConnectionId": str(connection.id)}).encode(),
+            "signature",
+        )
+
+        self.assertEqual(created["connection_status"], "active")
+        self.assertEqual(result["accepted_count"], 1)
+        self.assertEqual(len(message_outbox.events), 1)
+        self.assertEqual(type(message_outbox.events[0]).__name__, "MessageReceived")
+        self.assertEqual(message_outbox.events[0].text_content, "je prends 3 sacs")
+        self.assertEqual(connect_outbox.events[0].platform_type, channel_code)
+
     def test_failed_refresh_marks_only_that_connection_expired_and_emits_event(self):
         class FailingGateway:
             def refresh_access_token(self, connection):
@@ -255,7 +362,7 @@ class PlatformConnectorUseCaseTests(unittest.TestCase):
         outbox = FakeOutbox()
         use_case = RefreshTokensUseCase(
             FakeConnections([self.connection]),
-            FailingGateway(),
+            _registry(gateway=FailingGateway()),
             FakeCipher(),
             FakeUnitOfWork(),
             outbox,

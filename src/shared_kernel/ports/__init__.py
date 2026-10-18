@@ -15,6 +15,12 @@ class IConnectionPlanReader(Protocol):
     def active_connection_limit(self, merchant_id: UUID) -> int | None:
         """Return the plan's active connection limit, or None for unlimited."""
 
+
+class IMerchantPlanReader(Protocol):
+    """Read the plan code of a merchant without importing Identity models."""
+
+    def plan_for(self, merchant_id: UUID) -> str | None: ...
+
 class IMerchantCountryReader(Protocol):
     """Read a merchant's configured country without importing Identity into consumers."""
 

@@ -109,6 +109,8 @@ CACHES = {
 }
 PLATFORM_ADAPTERS = {
     "whatsapp": os.environ.get("WHATSAPP_ADAPTER", "mock"),
+    "instagram": os.environ.get("INSTAGRAM_ADAPTER", "mock"),
+    "facebook": os.environ.get("FACEBOOK_ADAPTER", "mock"),
 }
 PIEDLENS_AUTHENTICATOR = (
     "contexts.identity.infrastructure.adapters.http_authentication.authenticate_request"

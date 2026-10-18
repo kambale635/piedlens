@@ -3,6 +3,15 @@
 Ce fichier conserve les decisions, documents consultes, fichiers crees ou modifies et prochaines etapes afin de faciliter la reprise du projet.
 Mettre a jour ce journal a chaque etape importante.
 
+## 2026-10-18 - Etape 3a terminee : canaux extensibles
+
+- Etat initial reel en cinq lignes : `ChannelConfigRecord` existait sans migration ni seed; le registre de capacites existait mais le composition root ignorait le choix d'adaptateur; seules les variables WhatsApp etaient lues; aucune suite de contrat reutilisable n'existait; `IChannelAvailability` etait declare deux fois. Le test de pipeline `fake_channel` etait deja present.
+- Termine : selection mock par defaut via `WHATSAPP_ADAPTER`, `INSTAGRAM_ADAPTER` et `FACEBOOK_ADAPTER`; le mode `real` et les valeurs inconnues echouent clairement tant qu'aucun adaptateur reel n'existe.
+- Termine : migration `platform_connectors.0005_channelconfigrecord` avec table prefixee et seed deterministe pour WhatsApp, Instagram et Facebook (actifs pour les trois plans, aucun pays interdit par defaut); le lecteur consulte les flags plan/pays via les ports Identity du shared kernel.
+- Termine : ports de capacite ISP, registre extensible par code, messages normalises sans champs bruts de plateforme, test reutilisable de contrat d'adaptateur et pipeline `fake_channel`.
+- Validation : tests Platform Connectors + architecture 27/27; migration `--check --dry-run` sans changement; suite complete SQLite 155 tests, 1 ignore. PostgreSQL Compose non valide : `.env` ne fournit pas `DJANGO_SECRET_KEY` ni `POSTGRES_PASSWORD`; Redis local repond `PONG`.
+- Aucun adaptateur reel ni identifiant externe ajoute. Prochaine etape autorisee : etape 4, architecture de securite.
+
 ## 2026-10-18 - Orientation SaaS et durcissement PostgreSQL
 
 - Reprise coherence (etape 1) : les changements interrompus ont ete resumes en cinq lignes dans l'echange, puis commits separes pour port dev/modification devise CRM (`0d44fbd`), enrichissement `MessageEvaluated` (`1f7f59c`), gateway mock/fail-closed (`2bca62d`) et port CRM Identity (`46077bf`). Worktree initialement sale: apres commits, clone temporaire `/tmp/piedlens-clone.LGKSHa/repo` autonome et propre, suite complete 147/147.

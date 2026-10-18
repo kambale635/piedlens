@@ -25,6 +25,18 @@ class PlatformConnectionRecord(models.Model):
         ]
 
 
+class ChannelConfigRecord(models.Model):
+    """Administrative channel availability and feature flags by plan and country."""
+
+    code = models.CharField(max_length=64, primary_key=True)
+    active = models.BooleanField(default=False)
+    plan_flags = models.JSONField(default=dict)
+    country_flags = models.JSONField(default=dict)
+
+    class Meta:
+        db_table = "platform_connectors_channel_configs"
+
+
 class MessageRecord(models.Model):
     """Normalized inbound message record with a DB-enforced idempotency key (INV-PC-03)."""
 

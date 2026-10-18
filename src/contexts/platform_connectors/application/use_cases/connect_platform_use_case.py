@@ -13,9 +13,11 @@ from ..ports.platform_ports import (
     IPlatformConnectorsOutbox,
     IPlatformConnectorsUnitOfWork,
     IPlatformConnectionRepository,
-    IPlatformGateway,
     ITokenCipher,
 )
+from ..ports.channel_capabilities import IOAuthCodeExchanger
+from ..ports.channel_config import IChannelAvailability
+from ..ports.channel_provider_registry import IChannelProviderRegistry
 
 
 class ConnectPlatformUseCase:
@@ -29,7 +31,8 @@ class ConnectPlatformUseCase:
     def __init__(
         self,
         connections: IPlatformConnectionRepository,
-        gateway: IPlatformGateway,
+        providers: IChannelProviderRegistry,
+        channel_availability: IChannelAvailability,
         cipher: ITokenCipher,
         usage_reader: IConnectionUsageReader,
         plan_reader: IConnectionPlanReader,
@@ -39,7 +42,8 @@ class ConnectPlatformUseCase:
     ) -> None:
         """Receive provider, persistence, plan and transaction adapters through ports."""
         self._connections = connections
-        self._gateway = gateway
+        self._providers = providers
+        self._channel_availability = channel_availability
         self._cipher = cipher
         self._usage_reader = usage_reader
         self._plan_reader = plan_reader
@@ -61,12 +65,18 @@ class ConnectPlatformUseCase:
         except ValueError as error:
             raise InvalidOAuthCodeException("Unsupported platform type.") from error
 
+        if not self._channel_availability.is_enabled_for_merchant(
+            normalized_platform.value, merchant_id
+        ):
+            raise InvalidOAuthCodeException("Channel is not enabled for this merchant.")
+
         limit = self._plan_reader.active_connection_limit(merchant_id)
         usage = self._usage_reader.count_active_connections(merchant_id)
         if limit is not None and usage >= limit:
             raise PlanConnectionLimitReachedException("Plan connection limit reached.")
 
-        token, resolved_account_id = self._gateway.exchange_oauth_code(
+        exchanger = self._providers.require(normalized_platform.value, IOAuthCodeExchanger)
+        token, resolved_account_id = exchanger.exchange_oauth_code(
             normalized_platform.value, oauth_code, external_account_id
         )
         if not token or not resolved_account_id:

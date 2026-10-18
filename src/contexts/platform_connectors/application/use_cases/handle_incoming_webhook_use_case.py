@@ -5,13 +5,13 @@ from shared_kernel.application_exceptions import ValidationException
 
 from ...domain.events.platform_events import MessageReceived
 from ..exceptions import InvalidWebhookSignatureException, PlatformConnectionNotFoundException
+from ..ports.channel_capabilities import IWebhookMessageNormalizer, IWebhookSignatureVerifier
+from ..ports.channel_provider_registry import IChannelProviderRegistry
 from ..ports.platform_ports import (
     IMessageRepository,
     IPlatformConnectorsOutbox,
     IPlatformConnectorsUnitOfWork,
     IPlatformConnectionRepository,
-    IWebhookPayloadMapper,
-    IWebhookSignatureVerifier,
 )
 
 
@@ -27,22 +27,21 @@ class HandleIncomingWebhookUseCase:
         self,
         connections: IPlatformConnectionRepository,
         messages: IMessageRepository,
-        verifier: IWebhookSignatureVerifier,
-        mapper: IWebhookPayloadMapper,
+        providers: IChannelProviderRegistry,
         unit_of_work: IPlatformConnectorsUnitOfWork,
         outbox: IPlatformConnectorsOutbox,
     ) -> None:
         """Receive signature, ACL, persistence and Outbox ports through injection."""
         self._connections = connections
         self._messages = messages
-        self._verifier = verifier
-        self._mapper = mapper
+        self._providers = providers
         self._unit_of_work = unit_of_work
         self._outbox = outbox
 
     def execute(self, platform_type: str, raw_body: bytes, signature: str) -> dict:
         """Reject unsigned payloads before decoding or persisting any content (INV-PC-02)."""
-        if not self._verifier.verify(platform_type, raw_body, signature):
+        verifier = self._providers.require(platform_type, IWebhookSignatureVerifier)
+        if not verifier.verify(platform_type, raw_body, signature):
             raise InvalidWebhookSignatureException("Webhook signature is invalid.")
         try:
             payload = json.loads(raw_body)
@@ -54,7 +53,8 @@ class HandleIncomingWebhookUseCase:
         if connection is None or connection.platform_type.value != platform_type:
             raise PlatformConnectionNotFoundException("Platform connection was not found.")
 
-        mapped_messages = self._mapper.map_messages(connection, payload)
+        normalizer = self._providers.require(platform_type, IWebhookMessageNormalizer)
+        mapped_messages = normalizer.normalize(connection, payload)
         accepted_count = 0
         with self._unit_of_work:
             for message in mapped_messages:

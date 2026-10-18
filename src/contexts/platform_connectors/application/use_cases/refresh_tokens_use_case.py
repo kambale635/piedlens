@@ -6,9 +6,10 @@ from ..ports.platform_ports import (
     IPlatformConnectorsOutbox,
     IPlatformConnectorsUnitOfWork,
     IPlatformConnectionRepository,
-    IPlatformGateway,
     ITokenCipher,
 )
+from ..ports.channel_capabilities import ITokenRefresher
+from ..ports.channel_provider_registry import IChannelProviderRegistry
 
 
 class RefreshTokensUseCase:
@@ -19,10 +20,10 @@ class RefreshTokensUseCase:
     and are persisted (INV-PC-01).
     """
 
-    def __init__(self, connections, gateway, cipher, unit_of_work, outbox, clock) -> None:
+    def __init__(self, connections, providers: IChannelProviderRegistry, cipher, unit_of_work, outbox, clock) -> None:
         """Receive persistence, provider, encryption, transaction, event and clock ports."""
         self._connections = connections
-        self._gateway = gateway
+        self._providers = providers
         self._cipher = cipher
         self._unit_of_work = unit_of_work
         self._outbox = outbox
@@ -34,7 +35,8 @@ class RefreshTokensUseCase:
         if connection is None:
             raise PlatformConnectionNotFoundException("Platform connection was not found.")
         try:
-            token = self._gateway.refresh_access_token(connection)
+            refresher = self._providers.require(connection.platform_type.value, ITokenRefresher)
+            token = refresher.refresh_access_token(connection)
         except Exception:
             now = self._clock.now_utc()
             with self._unit_of_work:

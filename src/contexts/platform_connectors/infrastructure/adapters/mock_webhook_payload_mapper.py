@@ -30,3 +30,7 @@ class MockWebhookPayloadMapper:
                 )
             )
         return messages
+
+    def normalize(self, connection, payload: dict) -> list[Message]:
+        """Expose the mapper through the registry's capability-oriented contract."""
+        return self.map_messages(connection, payload)

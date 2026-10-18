@@ -12,6 +12,12 @@ from contexts.platform_connectors.infrastructure.adapters.django_aes_token_ciphe
 from contexts.platform_connectors.infrastructure.adapters.django_webhook_signature_verifier import (
     DjangoWebhookSignatureVerifier,
 )
+from contexts.platform_connectors.infrastructure.adapters.environment_platform_gateway import (
+    configured_platform_gateway,
+)
+from contexts.platform_connectors.infrastructure.adapters.mock_platform_gateway import (
+    MockPlatformGateway,
+)
 
 
 class PlatformSecurityAdapterTests(unittest.TestCase):
@@ -32,3 +38,12 @@ class PlatformSecurityAdapterTests(unittest.TestCase):
         self.assertTrue(verifier.verify("whatsapp", body, f"sha256={digest}"))
         self.assertFalse(verifier.verify("whatsapp", body + b" ", f"sha256={digest}"))
         self.assertFalse(verifier.verify("instagram", body, f"sha256={digest}"))
+
+    @override_settings(PLATFORM_ADAPTERS={"fake_channel": "mock"})
+    def test_configured_gateway_uses_mock_adapter(self):
+        self.assertIsInstance(configured_platform_gateway("fake_channel"), MockPlatformGateway)
+
+    @override_settings(PLATFORM_ADAPTERS={"whatsapp": "real"})
+    def test_configured_gateway_fails_closed_until_real_adapter_is_implemented(self):
+        with self.assertRaisesRegex(RuntimeError, "real whatsapp adapter is not implemented"):
+            configured_platform_gateway("whatsapp")

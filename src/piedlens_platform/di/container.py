@@ -166,6 +166,9 @@ from contexts.platform_connectors.application.use_cases.handle_incoming_webhook_
 from contexts.platform_connectors.application.use_cases.refresh_tokens_use_case import (
     RefreshTokensUseCase,
 )
+from contexts.platform_connectors.application.use_cases.purge_merchant_data_use_case import (
+    PurgeMerchantDataUseCase as PurgePlatformConnectorsMerchantDataUseCase,
+)
 from contexts.platform_connectors.application.use_cases.sync_messages_use_case import (
     SyncMessagesUseCase,
 )
@@ -201,6 +204,12 @@ from contexts.platform_connectors.infrastructure.persistence.django_platform_con
 )
 from contexts.platform_connectors.infrastructure.persistence.django_platform_outbox import (
     DjangoPlatformConnectorsOutbox,
+)
+from contexts.platform_connectors.infrastructure.persistence.django_merchant_data_purger import (
+    DjangoPlatformConnectorsMerchantPurger,
+)
+from contexts.platform_connectors.infrastructure.persistence.django_processed_event_repository import (
+    DjangoPlatformConnectorsProcessedEventRepository,
 )
 from contexts.platform_connectors.infrastructure.persistence.django_unit_of_work import (
     DjangoPlatformConnectorsUnitOfWork,
@@ -590,6 +599,17 @@ class ApplicationContainer:
             mapper=MockWebhookPayloadMapper(),
             unit_of_work=DjangoPlatformConnectorsUnitOfWork(),
             outbox=DjangoPlatformConnectorsOutbox(),
+        )
+
+    @staticmethod
+    def purge_platform_connectors_merchant_data() -> PurgePlatformConnectorsMerchantDataUseCase:
+        """Wire local credential/message deletion, event idempotency and Outbox completion (INV-PC-05)."""
+        return PurgePlatformConnectorsMerchantDataUseCase(
+            purger=DjangoPlatformConnectorsMerchantPurger(),
+            processed_events=DjangoPlatformConnectorsProcessedEventRepository(),
+            unit_of_work=DjangoPlatformConnectorsUnitOfWork(),
+            outbox=DjangoPlatformConnectorsOutbox(),
+            clock=SystemPlatformClock(),
         )
 
     @staticmethod

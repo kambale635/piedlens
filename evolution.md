@@ -13,6 +13,8 @@ Mettre a jour ce journal a chaque etape importante.
 - Validation Identity : tests unitaires et integration du handler, 8/8; migrations appliquees par le test. Prochaine etape : purge locale idempotente Access Control, puis Platform Connectors, Rules Engine, Order Detection et CRM.
 - Access Control — purge merchant terminee : suppression reprenable par RoleAssignment, conservation separee des identifiants d'audit, roles/assignations globaux non modifies, marqueur idempotent et `MerchantDataPurged` via Outbox (INV-AC-06, INV-BK-06, INV-TR-01/03).
 - Validation Access Control : tests unitaires et integration 8/8; `makemigrations access_control --check --dry-run` sans changement. Prochaine etape : purge Platform Connectors.
+- Platform Connectors — purge merchant terminee : connexions et tokens chiffres detruits avant les messages; chaque enregistrement a un checkpoint atomique. Les ecritures de message verrouillent et revalident la connexion pour empecher une recreation apres purge (INV-PC-05, INV-BK-06, INV-TR-01/03).
+- Validation Platform Connectors : tests unitaires/integration 12/12; `makemigrations platform_connectors --check --dry-run` sans changement. Prochaine etape : purge Rules Engine.
 
 ## 2026-10-17 - Reprise de la phase avant production
 

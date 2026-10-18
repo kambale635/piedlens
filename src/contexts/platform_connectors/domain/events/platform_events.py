@@ -37,3 +37,13 @@ class MessageReceived:
     text_content: str
     received_at: datetime
     event_id: UUID = field(default_factory=uuid4)
+
+
+@dataclass(frozen=True)
+class MerchantDataPurged:
+    """Platform Connectors confirmation that local credentials and messages were purged (INV-PC-05)."""
+
+    context: str
+    merchant_id: UUID
+    occurred_at: datetime
+    event_id: UUID = field(default_factory=uuid4)

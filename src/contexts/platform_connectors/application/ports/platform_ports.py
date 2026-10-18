@@ -74,6 +74,15 @@ class IPlatformConnectorsOutbox(Protocol):
     def add(self, event: object) -> None: ...
 
 
+class IPlatformConnectorsProcessedEventRepository(Protocol):
+    def has_processed(self, event_id: UUID, consumer_name: str) -> bool: ...
+    def mark_processed(self, event_id: UUID, consumer_name: str) -> None: ...
+
+
+class IPlatformConnectorsMerchantPurger(Protocol):
+    def purge_merchant_data(self, event_id: UUID, merchant_id: UUID) -> None: ...
+
+
 __all__ = [
     "IConnectionPlanReader",
     "IConnectionUsageReader",

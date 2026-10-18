@@ -1,5 +1,5 @@
 from ...domain.entities.message import Message
-from .models import MessageRecord
+from .models import MessageRecord, PlatformConnectionRecord
 
 
 class DjangoMessageRepository:
@@ -7,6 +7,12 @@ class DjangoMessageRepository:
 
     def save_if_new(self, message: Message) -> bool:
         """Return true only for the first message with this connection/external ID pair."""
+        connection_exists = PlatformConnectionRecord.objects.select_for_update().filter(
+            id=message.platform_connection_id,
+            merchant_id=message.merchant_id,
+        ).exists()
+        if not connection_exists:
+            return False
         _, created = MessageRecord.objects.get_or_create(
             platform_connection_id=message.platform_connection_id,
             external_message_id=message.external_message_id,

@@ -21,7 +21,7 @@ class IProcessedMessageRepository(Protocol):
     def has_processed(self, event_id: UUID, consumer_name: str) -> bool:
         """Check the event/consumer key before applying a message event."""
 
-    def mark_processed(self, event_id: UUID, consumer_name: str) -> None:
+    def mark_processed(self, event_id: UUID, consumer_name: str) -> bool:
         """Write the marker in the Contact transaction."""
 
 

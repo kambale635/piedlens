@@ -16,9 +16,10 @@ class DjangoPlatformConnectorsProcessedEventRepository:
             consumer_name=consumer_name,
         ).exists()
 
-    def mark_processed(self, event_id, consumer_name: str) -> None:
+    def mark_processed(self, event_id, consumer_name: str) -> bool:
         """Record event completion in the active transaction (INV-TR-03)."""
-        ProcessedEventRecord.objects.get_or_create(
+        _, created = ProcessedEventRecord.objects.get_or_create(
             event_id=event_id,
             consumer_name=consumer_name,
         )
+        return created

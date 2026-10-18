@@ -18,9 +18,10 @@ class DjangoProcessedMessageRepository:
             consumer_name=consumer_name,
         ).exists()
 
-    def mark_processed(self, event_id: UUID, consumer_name: str) -> None:
+    def mark_processed(self, event_id: UUID, consumer_name: str) -> bool:
         """Insert the processed marker atomically with the Contact aggregate."""
-        ProcessedMessageRecord.objects.get_or_create(
+        _, created = ProcessedMessageRecord.objects.get_or_create(
             event_id=event_id,
             consumer_name=consumer_name,
         )
+        return created

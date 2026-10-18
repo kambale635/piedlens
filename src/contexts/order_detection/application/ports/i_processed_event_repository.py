@@ -8,5 +8,5 @@ class IProcessedEventRepository(Protocol):
     def has_processed(self, event_id: UUID, consumer_name: str) -> bool:
         """Check whether this consumer committed the event previously."""
 
-    def mark_processed(self, event_id: UUID, consumer_name: str) -> None:
+    def mark_processed(self, event_id: UUID, consumer_name: str) -> bool:
         """Record processing in the same transaction as aggregate and outbox writes."""

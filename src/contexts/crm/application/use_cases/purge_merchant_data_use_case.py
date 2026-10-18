@@ -36,6 +36,7 @@ class PurgeMerchantDataUseCase:
         with self._unit_of_work:
             if self._processed_events.has_processed(event_id, self.CONSUMER_NAME):
                 return False
-            self._processed_events.mark_processed(event_id, self.CONSUMER_NAME)
+            if not self._processed_events.mark_processed(event_id, self.CONSUMER_NAME):
+                return False
             self._outbox.add(MerchantDataPurged("crm", merchant_id))
         return True

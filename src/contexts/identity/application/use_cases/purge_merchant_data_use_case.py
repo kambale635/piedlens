@@ -39,6 +39,7 @@ class PurgeMerchantDataUseCase:
             if self._processed_events.has_processed(event_id, self.CONSUMER_NAME):
                 return False
             self._merchants.delete_by_id(merchant_id)
-            self._processed_events.mark_processed(event_id, self.CONSUMER_NAME)
+            if not self._processed_events.mark_processed(event_id, self.CONSUMER_NAME):
+                return False
             self._outbox.add(MerchantDataPurged("identity", merchant_id))
         return True

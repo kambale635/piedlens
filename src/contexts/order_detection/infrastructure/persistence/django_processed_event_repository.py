@@ -17,9 +17,10 @@ class DjangoProcessedEventRepository:
             event_id=event_id, consumer_name=consumer_name
         ).exists()
 
-    def mark_processed(self, event_id: UUID, consumer_name: str) -> None:
+    def mark_processed(self, event_id: UUID, consumer_name: str) -> bool:
         """Ensure the idempotency marker exists inside the caller's UnitOfWork."""
-        ProcessedEventRecord.objects.get_or_create(
+        _, created = ProcessedEventRecord.objects.get_or_create(
             event_id=event_id,
             consumer_name=consumer_name,
         )
+        return created

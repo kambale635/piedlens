@@ -23,7 +23,10 @@ class FakeProcessedEvents:
         return (event_id, consumer_name) in self.events
 
     def mark_processed(self, event_id, consumer_name):
+        if (event_id, consumer_name) in self.events:
+            return False
         self.events.add((event_id, consumer_name))
+        return True
 
 
 class FakeUnitOfWork:
@@ -61,6 +64,18 @@ class PurgeMerchantDataUseCaseTests(unittest.TestCase):
         self.assertIsInstance(outbox.events[0], MerchantDataPurged)
         self.assertEqual(outbox.events[0].context, "identity")
         self.assertEqual(outbox.events[0].merchant_id, merchant_id)
+
+    def test_concurrent_marker_winner_is_the_only_one_to_emit_completion(self):
+        merchants = FakeMerchants()
+        outbox = FakeOutbox()
+        processed_events = FakeProcessedEvents()
+        processed_events.mark_processed = lambda event_id, consumer_name: False
+        use_case = PurgeMerchantDataUseCase(
+            merchants, processed_events, FakeUnitOfWork(), outbox
+        )
+
+        self.assertFalse(use_case.execute(uuid4(), uuid4()))
+        self.assertEqual(outbox.events, [])
 
 
 if __name__ == "__main__":

@@ -21,7 +21,10 @@ class FakeProcessedEvents:
         return (event_id, consumer_name) in self.events
 
     def mark_processed(self, event_id, consumer_name):
+        if (event_id, consumer_name) in self.events:
+            return False
         self.events.add((event_id, consumer_name))
+        return True
 
 
 class FakeUnitOfWork:

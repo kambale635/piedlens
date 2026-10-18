@@ -96,9 +96,10 @@ class DjangoIdentityProcessedEventRepository:
             consumer_name=consumer_name,
         ).exists()
 
-    def mark_processed(self, event_id, consumer_name: str) -> None:
+    def mark_processed(self, event_id, consumer_name: str) -> bool:
         """Record completion in the same transaction as the purge and Outbox event (INV-TR-03)."""
-        ProcessedEventRecord.objects.get_or_create(
+        _, created = ProcessedEventRecord.objects.get_or_create(
             event_id=event_id,
             consumer_name=consumer_name,
         )
+        return created

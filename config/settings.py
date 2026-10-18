@@ -2,18 +2,14 @@ import os
 import secrets
 from pathlib import Path
 
+from .security_settings import validate_production_configuration
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+validate_production_configuration(os.environ)
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or secrets.token_urlsafe(50)
 DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
-if os.environ.get("DJANGO_ENV") == "production":
-    if not os.environ.get("DJANGO_SECRET_KEY"):
-        raise RuntimeError("DJANGO_SECRET_KEY must be configured in production.")
-    if not os.environ.get("DJANGO_ALLOWED_HOSTS"):
-        raise RuntimeError("DJANGO_ALLOWED_HOSTS must be configured in production.")
-    if DEBUG:
-        raise RuntimeError("DJANGO_DEBUG must be disabled in production.")
 
 INSTALLED_APPS = [
     "django.contrib.auth",
@@ -132,10 +128,22 @@ ORDER_REMINDER_DELAYS_SECONDS = {
     "payment_pending": int(os.environ.get("ORDER_PAYMENT_REMINDER_DELAY_SECONDS", "86400")),
     "delivery_pending": int(os.environ.get("ORDER_DELIVERY_REMINDER_DELAY_SECONDS", "86400")),
 }
-PLATFORM_TOKEN_ENCRYPTION_KEY = os.environ.get("PLATFORM_TOKEN_ENCRYPTION_KEY", "")
+PLATFORM_TOKEN_ENCRYPTION_ACTIVE_VERSION = os.environ.get(
+    "PLATFORM_TOKEN_ENCRYPTION_ACTIVE_VERSION", "v1"
+)
+PLATFORM_TOKEN_ENCRYPTION_KEYS = {
+    name.removeprefix("PLATFORM_TOKEN_ENCRYPTION_KEY_").lower(): value
+    for name, value in os.environ.items()
+    if name.startswith("PLATFORM_TOKEN_ENCRYPTION_KEY_") and value
+}
+if os.environ.get("PLATFORM_TOKEN_ENCRYPTION_KEY"):
+    PLATFORM_TOKEN_ENCRYPTION_KEYS.setdefault(
+        "legacy", os.environ["PLATFORM_TOKEN_ENCRYPTION_KEY"]
+    )
 PLATFORM_WEBHOOK_SECRETS = {
     "whatsapp": os.environ.get("WHATSAPP_WEBHOOK_SECRET", ""),
     "instagram": os.environ.get("INSTAGRAM_WEBHOOK_SECRET", ""),
+    "facebook": os.environ.get("FACEBOOK_WEBHOOK_SECRET", ""),
 }
 BACKUP_EXPORT_SIGNING_SECRET = os.environ.get("BACKUP_EXPORT_SIGNING_SECRET", "")
 BACKUP_EXPORT_BASE_URL = os.environ.get(

@@ -12,6 +12,34 @@ Mettre a jour ce journal a chaque etape importante.
 - Validation : tests Platform Connectors + architecture 27/27; migration `--check --dry-run` sans changement; suite complete SQLite 155 tests, 1 ignore. PostgreSQL Compose non valide : `.env` ne fournit pas `DJANGO_SECRET_KEY` ni `POSTGRES_PASSWORD`; Redis local repond `PONG`.
 - Aucun adaptateur reel ni identifiant externe ajoute. Prochaine etape autorisee : etape 4, architecture de securite.
 
+## 2026-10-18 - Etape 4 securite : documentation initiale
+
+- Cree `docs/27-security-architecture.md` avec modele de menaces, controles obligatoires et matrice distinguant preuves existantes et preuves manquantes.
+- Audit de depart : secrets production et auth partiels; rotation de tokens, anti-rejeu Redis, test exhaustif des routes, controles HTTP, audit append-only, chiffrement applicatif et scans CI incomplets ou absents.
+- Prochaine sous-etape : rendre les secrets obligatoires au demarrage production, ajouter les tests de settings et enregistrer les seuls noms de variables dans `docs/28-external-credentials-register.md`.
+
+## 2026-10-18 - Etape 4 securite : secrets de production
+
+- `config/security_settings.py` valide les secrets requis avant le chargement des settings; il refuse aussi `DEBUG=1` et rend les cles S3 obligatoires seulement si le backend S3 est active.
+- Les tests purs couvrent l'absence de chaque variable, le mode debug, le stockage S3 et la presence des trois secrets webhook; 5/5, sans secret injecte.
+- `docs/28-external-credentials-register.md` enregistre les noms et provenances uniquement. Les secrets webhook fournisseur restent absents; staging puis approbation sont requis avant tout usage live.
+- Prochaine sous-etape : cles de token chiffrees versionnees avec decrypt/re-encrypt pendant la rotation.
+
+## 2026-10-18 - Etape 4 securite : rotation des tokens
+
+- `DjangoAesTokenCipher` chiffre en AES-256-GCM avec version authentifiee (`vN.`) et accepte temporairement les valeurs historiques non versionnees via la cle `legacy`.
+- La commande `rotate_platform_tokens` relit chaque connexion, rechiffre sous la cle active et committe chaque enregistrement dans sa propre transaction; elle ne journalise que le compte.
+- Le registre 28 decrit `PLATFORM_TOKEN_ENCRYPTION_ACTIVE_VERSION`, `PLATFORM_TOKEN_ENCRYPTION_KEY_<VERSION>` et la variable historique a conserver seulement pendant migration.
+- Validation : rotation persistante (format v1 et legacy), chiffrement unitaire et tests de secrets : 12/12.
+- Piege de deploiement : garder les anciennes cles disponibles jusqu'a verification qu'aucune ligne n'utilise leur version; ne jamais retirer la cle legacy avant rotation des valeurs sans version.
+- Prochaine sous-etape : rotation/reutilisation des refresh tokens, revocation, backoff et validateurs Identity.
+
+## 2026-10-18 - Etape 4 securite : contrat Identity etendu
+
+- Le catalogue initial ne retournait pas le refresh token de remplacement et ne listait pas la revocation. Extension documentee avant implementation : rotation atomique, reuse qui revoque la famille, logout idempotent et revocation globale de l'utilisateur courant.
+- `docs/25-context-identity.md` precise le stockage d'un hash de refresh token, le port de backoff et le port TOTP sans adaptateur.
+- Prochaine sous-etape : persister les sessions Identity sans relation ORM inter-contexte, puis tester rotation, rejeu, logout et revocation globale.
+
 ## 2026-10-18 - Orientation SaaS et durcissement PostgreSQL
 
 - Reprise coherence (etape 1) : les changements interrompus ont ete resumes en cinq lignes dans l'echange, puis commits separes pour port dev/modification devise CRM (`0d44fbd`), enrichissement `MessageEvaluated` (`1f7f59c`), gateway mock/fail-closed (`2bca62d`) et port CRM Identity (`46077bf`). Worktree initialement sale: apres commits, clone temporaire `/tmp/piedlens-clone.LGKSHa/repo` autonome et propre, suite complete 147/147.

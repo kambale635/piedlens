@@ -22,8 +22,21 @@
 ### `RefreshAccessTokenUseCase`
 - **Mode d'entrée** : route publique
 - **Entrée** : `{ refreshToken: string }`
-- **Sortie** : `{ accessToken: string, expiresAt: datetime }`
+- **Sortie** : `{ accessToken: string, refreshToken: string, expiresAt: datetime }`
+- **Postconditions** : rotation atomique; le refresh token presente est invalide apres succes. Un rejeu d'un refresh token deja consomme revoque toute sa famille de sessions.
 - **Erreurs** : `401 INVALID_REFRESH_TOKEN`
+
+### `LogoutUserUseCase`
+- **Mode d'entrée** : route publique, le refresh token identifie la session a revoquer
+- **Entrée** : `{ refreshToken: string }`
+- **Sortie** : `{ loggedOut: true }` (operation idempotente, sans oracle sur l'existence de la session)
+- **Postconditions** : la session et les access tokens qui lui sont lies ne sont plus acceptes.
+
+### `RevokeAllSessionsUseCase`
+- **Mode d'entrée** : route authentifiee; `actingUserId` provient exclusivement du principal authentifie
+- **Entrée** : `{ actingUserId: uuid }`
+- **Sortie** : `{ revokedSessionCount: number }`
+- **Postconditions** : toutes les sessions de l'utilisateur sont revoquees, y compris leurs access et refresh tokens.
 
 ### `CreateMerchantUseCase`
 - **Mode d'entrée** : route authentifiée (`actingUserId` vient du token, jamais du body)

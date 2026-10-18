@@ -11,6 +11,34 @@ Ce document guide toute nouvelle conversation ou reprise de session. Il complete
 - Pieges connus : Compose ne peut pas etre evalue sans `DJANGO_SECRET_KEY` et `POSTGRES_PASSWORD` dans l'environnement; ne pas lire/afficher `.env`. PostgreSQL local sur 5432 exige un mot de passe; le conteneur `garage_postgres` sur 5433 est un autre projet. Redis local sur 6379 repond `PONG`.
 - Les adaptateurs reels ne sont pas implementes. `WHATSAPP_ADAPTER`, `INSTAGRAM_ADAPTER` et `FACEBOOK_ADAPTER` restent `mock` par defaut; `real` echoue clairement. Aucun identifiant tiers requis pour la suite mock.
 
+## 2026-10-18 — Etape 4, sous-etape documentation terminee
+
+- Derniere sous-etape terminee : modele de menaces et matrice des preuves dans `docs/27-security-architecture.md`; les lignes non prouvees restent marquees partielles/manquantes.
+- Prochaine action : inspecter les reglages production et leurs tests; exiger les secrets sans valeur par defaut, puis creer/actualiser `docs/28-external-credentials-register.md` avec les noms seulement.
+- Verification documentaire : `git diff --check`; aucun test executable ne couvre la seule creation de cette specification. Les tests de chaque controle doivent suivre sa modification.
+- Piege : l'environnement courant n'a pas les variables Compose `DJANGO_SECRET_KEY` et `POSTGRES_PASSWORD`; ne pas ajouter de valeurs locales au depot et ne jamais demander leur copie dans le chat.
+
+## 2026-10-18 — Etape 4, secrets de production termines
+
+- Derniere sous-etape terminee : validation fail-fast dans `config/security_settings.py`, testee pour chaque variable requise, `DJANGO_DEBUG=1` et credentials conditionnels S3; registre noms-seulement ajoute dans `docs/28-external-credentials-register.md`.
+- Prochaine action : remplacer la cle unique des tokens par un ring de cles versionnees et tester la rotation.
+- Test cible : `./venv/bin/python manage.py test tests.unit.test_production_security_settings --settings=config.test_settings -v 1` (5/5).
+- Pieges : le module de validation est pur et teste sans config Django de production; ne pas creer de `.env` ou de secret de test commite. Les vrais secrets webhook/provider ne sont pas necessaires pour cette implementation mock.
+
+## 2026-10-18 — Etape 4, rotation des tokens terminee
+
+- Derniere sous-etape terminee : tokens `vN.` AES-GCM authentifies, lecture retrocompatible des ciphertexts historiques via la cle `legacy`, et commande `rotate_platform_tokens` transactionnelle par connexion.
+- Prochaine action : Identity, en commençant par le contrat actuel de refresh dans `docs/15-use-cases-catalog.md` et `docs/25-context-identity.md`; la rotation/revocation exige probablement une migration et des contrats de session.
+- Tests : `./venv/bin/python manage.py test tests.integration.platform_connectors.test_token_rotation tests.unit.platform_connectors.test_security_adapters tests.unit.test_production_security_settings --settings=config.test_settings -v 2` (12/12).
+- Pieges connus : fournir simultanement ancienne et nouvelle cle pendant rotation; la commande ne peut dechiffrer des lignes legacy si l'ancienne cle n'est pas dans le keyring. Les cles sont des secrets de deploiement, jamais des valeurs de test commitees.
+
+## 2026-10-18 — Etape 4, contrat Identity etendu
+
+- Contrat documente avant code dans `docs/15-use-cases-catalog.md` : refresh retourne les deux tokens; un rejeu invalide la famille; logout est idempotent; logout-all agit sur le principal courant uniquement.
+- `docs/25-context-identity.md` declare le stockage du hash du refresh token, le port de backoff progressif et le port TOTP (sans implementation TOTP).
+- Prochaine action : ajouter les sessions persistantes Identity et adapter routes/tests selon ces contrats.
+- Aucun nouveau secret tiers n'est requis; tests avec tokens signes locaux uniquement.
+
 ## 1. Retrouver le bon etat
 
 1. Confirmer le dossier racine du workspace et identifier les fichiers reellement presents. Ne pas supposer que Git, Docker, PostgreSQL ou des services locaux sont disponibles.

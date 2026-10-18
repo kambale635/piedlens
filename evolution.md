@@ -11,6 +11,8 @@ Mettre a jour ce journal a chaque etape importante.
 - Point de reprise confirme : le relay/consumer est termine; la suppression distribuee des donnees merchant reste la prochaine etape, ses handlers n'etant pas presents. Le stockage S3 et le Compose de deploiement restent ensuite a verifier.
 - Identity — purge merchant terminee : le consumer `MerchantDataDeleted` supprime uniquement le `Merchant`, conserve les `User`, inscrit `(event_id, consumer_name)` et `MerchantDataPurged` atomiquement; handler d'enveloppe et migration ajoutes (INV-ID-07, INV-BK-06, INV-TR-01/03).
 - Validation Identity : tests unitaires et integration du handler, 8/8; migrations appliquees par le test. Prochaine etape : purge locale idempotente Access Control, puis Platform Connectors, Rules Engine, Order Detection et CRM.
+- Access Control — purge merchant terminee : suppression reprenable par RoleAssignment, conservation separee des identifiants d'audit, roles/assignations globaux non modifies, marqueur idempotent et `MerchantDataPurged` via Outbox (INV-AC-06, INV-BK-06, INV-TR-01/03).
+- Validation Access Control : tests unitaires et integration 8/8; `makemigrations access_control --check --dry-run` sans changement. Prochaine etape : purge Platform Connectors.
 
 ## 2026-10-17 - Reprise de la phase avant production
 

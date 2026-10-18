@@ -126,6 +126,7 @@ from contexts.access_control.application.use_cases.assign_owner_role_on_merchant
 from contexts.access_control.application.use_cases.assign_role_to_user_use_case import AssignRoleToUserUseCase
 from contexts.access_control.application.use_cases.create_role_use_case import CreateRoleUseCase
 from contexts.access_control.application.use_cases.revoke_role_from_user_use_case import RevokeRoleFromUserUseCase
+from contexts.access_control.application.use_cases.purge_merchant_data_use_case import PurgeMerchantDataUseCase as PurgeAccessControlMerchantDataUseCase
 from contexts.access_control.application.use_cases.update_role_permissions_use_case import (
     UpdateRolePermissionsUseCase,
 )
@@ -143,6 +144,9 @@ from contexts.access_control.infrastructure.persistence.django_access_control_un
 )
 from contexts.access_control.infrastructure.persistence.django_processed_event_repository import (
     DjangoProcessedEventRepository,
+)
+from contexts.access_control.infrastructure.persistence.django_merchant_data_purger import (
+    DjangoAccessControlMerchantPurger,
 )
 from contexts.identity.infrastructure.adapters.django_connection_plan_reader import (
     DjangoConnectionPlanReader,
@@ -753,4 +757,14 @@ class ApplicationContainer:
             DjangoAccessControlRepository(), SystemAccessControlClock(), DjangoPermissionCache(),
             DjangoAccessControlOutbox(), DjangoAccessControlUnitOfWork(),
             DjangoProcessedEventRepository(),
+        )
+
+    @staticmethod
+    def purge_access_control_merchant_data() -> PurgeAccessControlMerchantDataUseCase:
+        """Wire local assignment deletion, idempotency and Outbox completion (INV-AC-06)."""
+        return PurgeAccessControlMerchantDataUseCase(
+            purger=DjangoAccessControlMerchantPurger(),
+            processed_events=DjangoProcessedEventRepository(),
+            unit_of_work=DjangoAccessControlUnitOfWork(),
+            outbox=DjangoAccessControlOutbox(),
         )

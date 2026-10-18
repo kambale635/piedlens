@@ -31,3 +31,13 @@ class RoleRevoked:
     revoked_at: datetime
     event_id: UUID = field(default_factory=uuid4)
     occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass(frozen=True)
+class MerchantDataPurged:
+    """Access Control confirmation that local merchant assignments were purged (INV-AC-06)."""
+
+    context: str
+    merchant_id: UUID
+    occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    event_id: UUID = field(default_factory=uuid4)

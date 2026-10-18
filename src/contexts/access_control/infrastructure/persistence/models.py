@@ -60,6 +60,36 @@ class ProcessedEventRecord(models.Model):
         ]
 
 
+class MerchantDeletionAuditRecord(models.Model):
+    assignment_id = models.UUIDField(primary_key=True)
+    user_id = models.UUIDField()
+    role_id = models.UUIDField()
+    scope_id = models.UUIDField()
+    granted_by = models.CharField(max_length=64)
+    granted_at = models.DateTimeField()
+    revoked_by = models.CharField(max_length=64, null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    purged_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "access_control_merchant_deletion_audit"
+
+
+class MerchantDeletionProgressRecord(models.Model):
+    event_id = models.UUIDField()
+    merchant_id = models.UUIDField()
+    assignment_id = models.UUIDField()
+
+    class Meta:
+        db_table = "access_control_merchant_deletion_progress"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["event_id", "assignment_id"],
+                name="uniq_access_control_merchant_deletion_progress",
+            )
+        ]
+
+
 class OutboxEventRecord(models.Model):
     event_id = models.UUIDField(primary_key=True)
     event_type = models.CharField(max_length=160)

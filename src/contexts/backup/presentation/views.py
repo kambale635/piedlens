@@ -86,6 +86,23 @@ def get_backup_export(request, export_job_id):
 
 @csrf_exempt
 @requires_permission("merchant.delete_data")
+@require_http_methods(["POST"])
+def request_merchant_deletion(request, merchant_id):
+    payload = json.loads(request.body or b"{}")
+    result = ApplicationContainer.request_merchant_deletion().execute(
+        merchant_id=UUID(str(request.merchant_id)),
+        user_id=UUID(str(request.user.id)),
+        password=payload.get("password", ""),
+    )
+    return JsonResponse(
+        {"confirmationToken": result["confirmation_token"], "expiresAt": result["expires_at"]},
+        status=201,
+        encoder=DjangoJSONEncoder,
+    )
+
+
+@csrf_exempt
+@requires_permission("merchant.delete_data")
 @require_http_methods(["DELETE"])
 def delete_all_merchant_data(request, merchant_id):
     payload = json.loads(request.body or b"{}")

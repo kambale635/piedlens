@@ -156,6 +156,8 @@ Les groupes ne traitent que les types d'événements auxquels ils sont abonnés;
 
 Pour respecter INV-TR-01, les différents agrégats d'un même contexte ne sont pas modifiés dans une transaction commune. Un marqueur local d'achèvement rend la reprise idempotente; l'événement `MerchantDataPurged` est ajouté dans la transaction qui clôt cette purge locale. L'effacement d'objets S3 s'appuie sur une file/reprise idempotente, car une suppression distante ne peut pas participer à la transaction PostgreSQL.
 
+Avec le backend S3, `IObjectStorage.delete` insère une tâche unique `backup_s3_object_deletions` dans la transaction Backup; seul `run_s3_deletion_worker` appelle l'API S3. Une erreur conserve la tâche avec un backoff exponentiel borné; si le worker tombe après la suppression distante, le retry répète une suppression S3 idempotente. Le worker Compose est activé par le profil `s3` uniquement.
+
 ## Configuration et tests requis
 
 Les paramètres `REDIS_URL`, `OUTBOX_RELAY_BATCH_SIZE`, `OUTBOX_RELAY_POLL_INTERVAL_SECONDS`, `OUTBOX_RELAY_BACKOFF_BASE_SECONDS`, `OUTBOX_RELAY_BACKOFF_MAX_SECONDS`, `STREAM_CLAIM_IDLE_MS` et `STREAM_MAX_DELIVERIES=5` proviennent de l'environnement, jamais de secrets codés en dur. Les tests d'intégration de transport utilisent un vrai Redis et couvrent la publication, les consumer groups, `XAUTOCLAIM`, DLQ et crash avant `XACK`; le test de bout en bout vérifie le parcours `MessageReceived` jusqu'à la mise à jour CRM via la détection d'une `Order` ou d'un `DetectionCandidate`.

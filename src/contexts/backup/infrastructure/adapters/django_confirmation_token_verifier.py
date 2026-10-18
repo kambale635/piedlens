@@ -1,34 +1,42 @@
 import hashlib
 import hmac
-import time
+from datetime import datetime, timezone
 
-from django.conf import settings
+from ..persistence.models import MerchantDeletionTokenRecord
 
 
 class DjangoConfirmationTokenVerifier:
     """Verify a merchant-bound, short-lived HMAC confirmation token (INV-BK-04)."""
 
-    MAX_AGE_SECONDS = 600
-
     def is_valid(self, merchant_id, confirmation_token: str) -> bool:
-        """Accept only a second-confirmation token signed for this merchant and time window."""
-        if not confirmation_token or not settings.BACKUP_DELETE_CONFIRMATION_SECRET:
+        """Check a token without consuming it; deletion must call consume instead."""
+        record = self._find_record(merchant_id, confirmation_token)
+        return record is not None
+
+    def consume(self, merchant_id, confirmation_token: str) -> bool:
+        """Atomically consume a valid, unexpired one-use token inside Backup's transaction."""
+        record = self._find_record(merchant_id, confirmation_token)
+        if record is None:
             return False
-        parts = confirmation_token.split(":")
-        if len(parts) != 4 or parts[0] != str(merchant_id):
-            return False
-        _, issued_at, nonce, supplied_signature = parts
-        try:
-            issued = int(issued_at)
-        except ValueError:
-            return False
-        now = int(time.time())
-        if issued > now or now - issued > self.MAX_AGE_SECONDS or not nonce:
-            return False
-        message = f"{parts[0]}:{issued_at}:{nonce}".encode("utf-8")
-        expected = hmac.new(
-            settings.BACKUP_DELETE_CONFIRMATION_SECRET.encode("utf-8"),
-            message,
-            hashlib.sha256,
-        ).hexdigest()
-        return hmac.compare_digest(expected, supplied_signature)
+        updated = MerchantDeletionTokenRecord.objects.filter(
+            id=record.id,
+            consumed_at__isnull=True,
+            expires_at__gt=datetime.now(timezone.utc),
+        ).update(consumed_at=datetime.now(timezone.utc))
+        return updated == 1
+
+    @staticmethod
+    def _find_record(merchant_id, confirmation_token):
+        if not confirmation_token:
+            return None
+        token_hash = hashlib.sha256(confirmation_token.encode()).hexdigest()
+        record = MerchantDeletionTokenRecord.objects.filter(
+            merchant_id=merchant_id,
+            token_hash=token_hash,
+            consumed_at__isnull=True,
+            expires_at__gt=datetime.now(timezone.utc),
+        ).first()
+        if record is None:
+            return None
+        expected = hashlib.sha256(confirmation_token.encode()).hexdigest()
+        return record if hmac.compare_digest(record.token_hash, expected) else None

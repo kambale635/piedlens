@@ -3,6 +3,11 @@ from urllib.parse import urlparse, parse_qs
 from django.test import TestCase, override_settings
 
 from contexts.backup.infrastructure.persistence.django_object_storage import DjangoObjectStorage
+from contexts.backup.infrastructure.persistence.models import S3ObjectDeletionRecord
+from contexts.backup.infrastructure.persistence.s3_object_deletion_worker import (
+    S3ObjectDeletionWorker,
+)
+from contexts.backup.infrastructure.persistence.s3_object_storage import S3ObjectStorage
 
 
 class BackupExportIntegrationTests(TestCase):
@@ -33,3 +38,66 @@ class BackupExportIntegrationTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()["errorCode"], "INVALID_EXPORT_SIGNATURE")
+
+    @override_settings(BACKUP_S3_BUCKET="backup-test")
+    def test_s3_delete_is_queued_and_worker_retries_without_losing_job(self):
+        class Client:
+            exceptions = type("Exceptions", (), {"NoSuchKey": KeyError})
+
+            def __init__(self):
+                self.attempts = 0
+
+            def delete_object(self, **kwargs):
+                self.attempts += 1
+                if self.attempts == 1:
+                    raise ConnectionError("temporary S3 outage")
+
+        client = Client()
+        storage = S3ObjectStorage(client=client)
+        storage.delete("snapshot-object")
+        record = S3ObjectDeletionRecord.objects.get(reference="snapshot-object")
+        self.assertEqual(client.attempts, 0)
+
+        worker = S3ObjectDeletionWorker(storage, 10, 0, 0)
+        deleted, failed = worker.process_once()
+        record.refresh_from_db()
+        self.assertEqual((deleted, failed), (0, 1))
+        self.assertEqual(record.attempts, 1)
+        self.assertEqual(record.last_error_type, "ConnectionError")
+
+        deleted, failed = worker.process_once()
+        self.assertEqual((deleted, failed), (1, 0))
+        self.assertFalse(S3ObjectDeletionRecord.objects.filter(reference="snapshot-object").exists())
+
+    @override_settings(
+        BACKUP_S3_BUCKET="backup-test",
+        BACKUP_S3_REGION="eu-west-1",
+    )
+    def test_s3_storage_uploads_encrypted_object_and_returns_signed_url(self):
+        class Body:
+            def read(self):
+                return b'{"messages": []}'
+
+        class Client:
+            exceptions = type("Exceptions", (), {"NoSuchKey": KeyError})
+
+            def put_object(self, **kwargs):
+                self.put_call = kwargs
+
+            def get_object(self, **kwargs):
+                return {"Body": Body()}
+
+            def generate_presigned_url(self, operation, Params, ExpiresIn):
+                return f"https://s3.invalid/{Params['Key']}?expires={ExpiresIn}"
+
+        client = Client()
+        storage = S3ObjectStorage(client=client)
+        reference = storage.store({"messages": []})
+
+        self.assertEqual(client.put_call["Bucket"], "backup-test")
+        self.assertEqual(client.put_call["ServerSideEncryption"], "AES256")
+        self.assertEqual(storage.retrieve(reference), {"messages": []})
+        self.assertEqual(
+            storage.generate_signed_url(reference, 15),
+            f"https://s3.invalid/{reference}?expires=900",
+        )

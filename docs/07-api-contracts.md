@@ -126,6 +126,7 @@ Chaque erreur 4xx/5xx retourne un corps standard :
 - `GET /api/v1/segments/{id}/members` : membres d'un segment, paginé (`GetSegmentMembersUseCase`)
 - `POST /api/v1/contacts/merge` : `{ primaryContactId, duplicateContactId }` → 202 `{ primaryContactId, mergedContactId, status: "merge_in_progress" }`
 - `PUT /api/v1/rule-sets/{scope}` : `{ rules[] }` → 200 `{ ruleSetId, version }` (`UpdateRuleSetUseCase`)
+- `POST /api/v1/merchants/{id}/data/deletion-request` : `{ password }` → 201 `{ confirmationToken, expiresAt }` (`RequestMerchantDeletionUseCase`); réauthentification obligatoire, jeton à usage unique valable 15 minutes
 - `DELETE /api/v1/merchants/{id}/data` : `{ confirmationToken }` → 200 `{ deletedAt }` (`DeleteAllMerchantDataUseCase`)
 
 ### Permission par route
@@ -139,6 +140,7 @@ Le `merchantId` vient toujours du `TenantIsolationMiddleware`.
 | `POST /api/v1/backups/{id}/restore` | `backup.restore` |
 | `GET /api/v1/backups/objects/{reference}` | `@public_route` avec signature HMAC temporaire obligatoire |
 | `DELETE /api/v1/merchants/{id}/data` | `merchant.delete_data` |
+| `POST /api/v1/merchants/{id}/data/deletion-request` | `merchant.delete_data` |
 | `GET /api/v1/dashboard/dormant-money` | `order.read` |
 | `PATCH /api/v1/orders/{id}/status` | `order.update_status` |
 | `POST /api/v1/orders/{id}/reminders` | `order.remind` |
@@ -151,3 +153,7 @@ Le `merchantId` vient toujours du `TenantIsolationMiddleware`.
 | `POST /api/v1/webhooks/whatsapp`, `POST /api/v1/webhooks/instagram` | `@public_route` avec vérification de signature obligatoire (INV-PC-02) |
 
 Les use cases déclenchés par événement ou job (synchronisation, évaluation, snapshots, relances planifiées, anomalies) n'ont pas de route.
+
+### Contrat de suppression des données merchant
+
+`POST /api/v1/merchants/{id}/data/deletion-request` exige le mot de passe de l'utilisateur authentifié dans `{ "password": "..." }`. La réponse `201` contient `{ "confirmationToken": "...", "expiresAt": "..." }`. Le jeton brut est présenté ensuite une seule fois à `DELETE /api/v1/merchants/{id}/data`; seul son hash est stocké et aucun middleware, contrôleur ou journal ne doit en conserver le contenu. Un jeton invalide, expiré ou déjà consommé retourne `403 INVALID_CONFIRMATION_TOKEN`. Les deux routes appliquent `merchant.delete_data`, le contrôle de scope du tenant et le middleware standard d'exception.

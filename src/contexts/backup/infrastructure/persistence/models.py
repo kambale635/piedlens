@@ -2,6 +2,7 @@ import uuid
 
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
+from django.utils import timezone
 
 
 class BackupSnapshotRecord(models.Model):
@@ -60,6 +61,18 @@ class MerchantDeletionTokenRecord(models.Model):
 
     class Meta:
         db_table = "backup_merchant_deletion_tokens"
+
+
+class S3ObjectDeletionRecord(models.Model):
+    """Durable retry queue for remote object deletion outside PostgreSQL transactions."""
+
+    reference = models.CharField(max_length=512, unique=True)
+    attempts = models.PositiveIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(default=timezone.now, db_index=True)
+    last_error_type = models.CharField(max_length=160, blank=True)
+
+    class Meta:
+        db_table = "backup_s3_object_deletions"
 
 
 class OutboxEventRecord(models.Model):

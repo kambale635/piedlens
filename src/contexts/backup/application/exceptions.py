@@ -15,6 +15,13 @@ class InvalidConfirmationTokenException(ValidationException):
     error_code = "INVALID_CONFIRMATION_TOKEN"
 
 
+class InvalidReauthenticationException(ValidationException):
+    """Reject deletion requests when the authenticated user's password is invalid (INV-BK-05)."""
+
+    status_code = 401
+    error_code = "INVALID_CREDENTIALS"
+
+
 class BackupSnapshotNotFoundException(ResourceNotFoundException):
     """Report no successful snapshot or export in the requesting merchant scope."""
 

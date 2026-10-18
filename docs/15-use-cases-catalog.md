@@ -168,8 +168,21 @@
 ### `DeleteAllMerchantDataUseCase`
 - **Entrée** : `{ merchantId: uuid, confirmationToken: string }`
 - **Sortie** : `{ deletedAt: datetime }`
-- **Préconditions** : `confirmationToken` valide (double confirmation obligatoire — action irréversible)
+- **Préconditions** : `confirmationToken` valide, non expiré et non consommé; sa consommation et la purge des données Backup sont atomiques (double confirmation obligatoire — action irréversible)
+- **Erreurs** : `403 INVALID_CONFIRMATION_TOKEN` (invalide, expiré ou déjà utilisé)
 - **Événements publiés** : `MerchantDataDeleted` (consommé par tous les autres contextes pour purge en cascade)
+
+### `RequestMerchantDeletionUseCase`
+- **Mode d'entrée** : route authentifiée `POST /api/v1/merchants/{id}/data/deletion-request`, permission `merchant.delete_data`
+- **Entrée** : `{ merchantId: uuid, actingUserId: uuid (depuis le contexte authentifié), password: string }`
+- **Sortie** : `{ confirmationToken: string, expiresAt: datetime }`
+- **Préconditions** : le merchant est celui du tenant authentifié; le mot de passe de l'utilisateur courant est réauthentifié via le port Identity exposé à l'application Backup.
+- **Postconditions** : jeton cryptographiquement aléatoire, à usage unique, lié au merchant, valable 15 minutes; seul son hash est persisté. Le jeton brut n'est retourné qu'une fois et n'est jamais journalisé.
+- **Erreurs** : `401 INVALID_CREDENTIALS` (mot de passe incorrect), `403 FORBIDDEN` (permission/scope refusé).
+- **Événements publiés** : aucun; `MerchantDataDeleted` est publié seulement par `DeleteAllMerchantDataUseCase` après confirmation.
+
+### Consommation de `MerchantDataDeleted`
+Chaque bounded context consomme cet événement de façon idempotente (INV-TR-03), ne purge que ses propres données et publie `MerchantDataPurged { context, merchantId }` dans sa propre Outbox une fois sa purge locale terminée. Les agrégats sont purgés dans des transactions distinctes conformément à INV-TR-01; le marqueur de purge et l'événement final sont atomiques. Détails par contexte et rétention d'audit : `docs/16-business-invariants-and-rules.md`.
 
 ---
 

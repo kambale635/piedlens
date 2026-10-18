@@ -41,5 +41,5 @@ class MerchantDataDeleted:
     """Outbox request for other bounded contexts to purge their own merchant data."""
 
     merchant_id: UUID
-    deleted_at: datetime
+    occurred_at: datetime
     event_id: UUID = field(default_factory=uuid4)

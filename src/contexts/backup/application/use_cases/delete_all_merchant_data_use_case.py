@@ -37,11 +37,11 @@ class DeleteAllMerchantDataUseCase:
         self._clock = clock
 
     def execute(self, merchant_id: UUID, confirmation_token: str) -> dict:
-        """Delete Backup data and publish MerchantDataDeleted only for a valid second token."""
-        if not self._token_verifier.is_valid(merchant_id, confirmation_token):
-            raise InvalidConfirmationTokenException("A valid deletion confirmation is required.")
-        deleted_at = self._clock.now_utc()
+        """Consume a valid one-use token and atomically queue the deletion event (INV-BK-05)."""
         with self._unit_of_work:
+            if not self._token_verifier.consume(merchant_id, confirmation_token):
+                raise InvalidConfirmationTokenException("A valid deletion confirmation is required.")
+            deleted_at = self._clock.now_utc()
             references = self._backups.delete_for_merchant(merchant_id)
             for reference in references:
                 self._storage.delete(reference)

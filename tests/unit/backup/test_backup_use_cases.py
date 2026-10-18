@@ -230,7 +230,12 @@ class BackupUseCaseTests(unittest.TestCase):
         repository = FakeBackupRepository([snapshot])
         storage = FakeStorage()
         outbox = FakeOutbox()
-        verifier = type("Verifier", (), {"is_valid": lambda self, merchant_id, token: token == "valid"})()
+        verifier = type(
+            "Verifier",
+            (),
+            {"is_valid": lambda self, merchant_id, token: token == "valid",
+             "consume": lambda self, merchant_id, token: token == "valid"},
+        )()
         use_case = DeleteAllMerchantDataUseCase(
             repository, storage, verifier, FakeUnitOfWork(), outbox, FakeClock()
         )

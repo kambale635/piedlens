@@ -34,6 +34,19 @@ class IConfirmationTokenVerifier(Protocol):
     """Verify a merchant-bound second confirmation for irreversible deletion (INV-BK-04)."""
 
     def is_valid(self, merchant_id: UUID, confirmation_token: str) -> bool: ...
+    def consume(self, merchant_id: UUID, confirmation_token: str) -> bool: ...
+
+
+class IDeletionTokenStore(Protocol):
+    """Persist only hashes of short-lived single-use deletion tokens (INV-BK-05)."""
+
+    def save(self, merchant_id: UUID, user_id: UUID, token_hash: str, expires_at: datetime) -> None: ...
+
+
+class IReauthenticationVerifier(Protocol):
+    """Verify the current authenticated user's password without exposing Identity storage."""
+
+    def verify(self, user_id: UUID, password: str) -> bool: ...
 
 
 class IBackupUnitOfWork(Protocol):

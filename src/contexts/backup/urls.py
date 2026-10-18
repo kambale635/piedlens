@@ -4,6 +4,8 @@ from .presentation import views
 
 
 urlpatterns = [
+     path("merchants/<uuid:merchant_id>/data/deletion-request", views.request_merchant_deletion,
+           name="merchant-deletion-request"),
     path("backups", views.list_backups, name="backup-list"),
     path("backups/<uuid:platform_connection_id>/restore", views.restore_from_snapshot,
          name="backup-restore"),

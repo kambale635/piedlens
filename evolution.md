@@ -3,6 +3,13 @@
 Ce fichier conserve les decisions, documents consultes, fichiers crees ou modifies et prochaines etapes afin de faciliter la reprise du projet.
 Mettre a jour ce journal a chaque etape importante.
 
+## 2026-10-18 - Reprise apres interruption
+
+- Etat initial : branche `main` a `9d89cef` (Outbox relay et Redis Streams deja committes); changements non committes deja presents concernant suppression merchant, S3, Compose et des adaptations connexes. Aucun changement existant n'a ete annule ni reinstalle.
+- Environnement : `redis-cli ping` repond `PONG`; le venv existant `venv/` est utilise directement car le terminal outil n'avait pas son activation. Aucune dependance ni environnement n'a ete installe ou recree.
+- Transport Redis valide : tests `test_outbox_relay` et `test_redis_stream_consumer`, 4/4. Le test Outbox verifie maintenant `PING` dans son setup et produit un echec explicite si Redis est inaccessible; l'injection `REDIS_URL=redis://localhost:1/0` confirme l'echec sans skip.
+- Point de reprise confirme : le relay/consumer est termine; la suppression distribuee des donnees merchant reste la prochaine etape, ses handlers n'etant pas presents. Le stockage S3 et le Compose de deploiement restent ensuite a verifier.
+
 ## 2026-10-17 - Reprise de la phase avant production
 
 - Etat initial verifie : branche `main` a `7ea088f`; worktree sale avec changements interrompus concernant Redis Streams/Outbox, suppression merchant, S3 et configuration de déploiement. Aucun contenu préexistant n'a été réinitialisé.

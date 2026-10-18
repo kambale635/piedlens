@@ -24,6 +24,13 @@ class OutboxRelayIntegrationTests(TransactionTestCase):
         )
         self.stream = f"test:relay:{uuid4()}.events"
         self.redis_client = redis.Redis.from_url(settings.REDIS_URL)
+        try:
+            self.redis_client.ping()
+        except RedisError as error:
+            self.fail(
+                "Redis integration test cannot connect; verify REDIS_URL and Redis availability: "
+                f"{error}"
+            )
 
     def tearDown(self):
         self.redis_client.delete(self.stream)

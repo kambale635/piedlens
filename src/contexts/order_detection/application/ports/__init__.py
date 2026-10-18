@@ -78,3 +78,9 @@ class IOrderDetectionOutbox(Protocol):
 
     def add(self, event: OrderDetectionEvent) -> None:
         """Append an event in the active aggregate transaction (INV-TR-02)."""
+
+
+class IOrderDetectionMerchantPurger(Protocol):
+    """Local persistence port for resumable merchant deletion (INV-OD-08)."""
+
+    def purge_merchant_data(self, event_id: UUID, merchant_id: UUID) -> None: ...

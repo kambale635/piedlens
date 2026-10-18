@@ -10,6 +10,9 @@ from contexts.order_detection.application.use_cases.reassign_contact_references_
     ReassignContactReferencesFromContactMergedUseCase,
 )
 from contexts.order_detection.application.use_cases.detect_order_use_case import DetectOrderUseCase
+from contexts.order_detection.application.use_cases.purge_merchant_data_use_case import (
+    PurgeMerchantDataUseCase as PurgeOrderDetectionMerchantDataUseCase,
+)
 from contexts.order_detection.application.use_cases.get_dormant_money_dashboard_use_case import (
     GetDormantMoneyDashboardUseCase,
 )
@@ -51,7 +54,10 @@ from contexts.order_detection.infrastructure.persistence.django_order_repository
     DjangoOrderRepository,
 )
 from contexts.order_detection.infrastructure.persistence.django_processed_event_repository import (
-    DjangoProcessedEventRepository,
+    DjangoProcessedEventRepository as DjangoOrderDetectionProcessedEventRepository,
+)
+from contexts.order_detection.infrastructure.persistence.django_merchant_data_purger import (
+    DjangoOrderDetectionMerchantPurger,
 )
 from contexts.order_detection.infrastructure.persistence.django_reminder_repository import (
     DjangoReminderRepository,
@@ -143,7 +149,7 @@ from contexts.access_control.infrastructure.persistence.django_access_control_un
     DjangoAccessControlUnitOfWork,
 )
 from contexts.access_control.infrastructure.persistence.django_processed_event_repository import (
-    DjangoProcessedEventRepository,
+    DjangoProcessedEventRepository as DjangoAccessControlProcessedEventRepository,
 )
 from contexts.access_control.infrastructure.persistence.django_merchant_data_purger import (
     DjangoAccessControlMerchantPurger,
@@ -324,7 +330,7 @@ class ApplicationContainer:
         """Wire the idempotent promotion consumer to the same PostgreSQL connection."""
         return CreateOrderFromPromotedDetectionUseCase(
             order_repository=DjangoOrderRepository(),
-            processed_events=DjangoProcessedEventRepository(),
+            processed_events=DjangoOrderDetectionProcessedEventRepository(),
             contact_redirects=DjangoContactReferenceRedirectRepository(),
             unit_of_work=DjangoOrderDetectionUnitOfWork(),
             outbox=DjangoOrderDetectionOutbox(),
@@ -336,7 +342,7 @@ class ApplicationContainer:
         return ReassignContactReferencesFromContactMergedUseCase(
             order_repository=DjangoOrderRepository(),
             candidate_repository=DjangoDetectionCandidateRepository(),
-            processed_events=DjangoProcessedEventRepository(),
+            processed_events=DjangoOrderDetectionProcessedEventRepository(),
             redirects=DjangoContactReferenceRedirectRepository(),
             unit_of_work=DjangoOrderDetectionUnitOfWork(),
         )
@@ -347,11 +353,21 @@ class ApplicationContainer:
     ) -> DetectOrderUseCase:
         """Wire detection while requiring Rules Engine configuration from its owner."""
         return DetectOrderUseCase(
-            processed_events=DjangoProcessedEventRepository(),
+            processed_events=DjangoOrderDetectionProcessedEventRepository(),
             contact_redirects=DjangoContactReferenceRedirectRepository(),
             order_repository=DjangoOrderRepository(),
             candidate_repository=DjangoDetectionCandidateRepository(),
             configuration=configuration,
+            unit_of_work=DjangoOrderDetectionUnitOfWork(),
+            outbox=DjangoOrderDetectionOutbox(),
+        )
+
+    @staticmethod
+    def purge_order_detection_merchant_data() -> PurgeOrderDetectionMerchantDataUseCase:
+        """Wire local order/candidate/reminder cleanup with transactional completion (INV-OD-08)."""
+        return PurgeOrderDetectionMerchantDataUseCase(
+            purger=DjangoOrderDetectionMerchantPurger(),
+            processed_events=DjangoOrderDetectionProcessedEventRepository(),
             unit_of_work=DjangoOrderDetectionUnitOfWork(),
             outbox=DjangoOrderDetectionOutbox(),
         )
@@ -400,7 +416,7 @@ class ApplicationContainer:
         return SendScheduledRemindersUseCase(
             order_repository=DjangoOrderRepository(),
             reminder_repository=DjangoReminderRepository(),
-            processed_events=DjangoProcessedEventRepository(),
+            processed_events=DjangoOrderDetectionProcessedEventRepository(),
             delivery_policy=delivery_policy,
             message_provider=message_provider,
             delivery=delivery,
@@ -792,7 +808,7 @@ class ApplicationContainer:
         return AssignOwnerRoleOnMerchantRegisteredUseCase(
             DjangoAccessControlRepository(), SystemAccessControlClock(), DjangoPermissionCache(),
             DjangoAccessControlOutbox(), DjangoAccessControlUnitOfWork(),
-            DjangoProcessedEventRepository(),
+            DjangoAccessControlProcessedEventRepository(),
         )
 
     @staticmethod
@@ -800,7 +816,7 @@ class ApplicationContainer:
         """Wire local assignment deletion, idempotency and Outbox completion (INV-AC-06)."""
         return PurgeAccessControlMerchantDataUseCase(
             purger=DjangoAccessControlMerchantPurger(),
-            processed_events=DjangoProcessedEventRepository(),
+            processed_events=DjangoAccessControlProcessedEventRepository(),
             unit_of_work=DjangoAccessControlUnitOfWork(),
             outbox=DjangoAccessControlOutbox(),
         )

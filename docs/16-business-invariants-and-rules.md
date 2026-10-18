@@ -98,3 +98,15 @@
 - **INV-ERR-01** : le domaine ne lève que des `DomainException`, jamais une exception technique brute (voir `22-error-handling-and-exceptions.md`).
 - **INV-ERR-02** : une exception non prévue (500) ne renvoie jamais de stack trace ni de détail technique au client — uniquement `errorCode` et `correlationId`.
 - **INV-ERR-03** : chaque `DomainException` cite l'identifiant `INV-XX-NN` de l'invariant qu'elle protège dans son docstring.
+
+## 12. Invariants — Suppression et conservation des données merchant
+
+- **INV-BK-05** : la demande de suppression exige une réauthentification par le mot de passe de l'utilisateur authentifié. Le jeton de confirmation est imprévisible, lié au merchant, valable 15 minutes et à usage unique; seul son hash est persisté et le jeton brut n'est jamais journalisé. La consommation est atomique avec le début effectif de la suppression. Jeton invalide, expiré ou consommé : `403 INVALID_CONFIRMATION_TOKEN`.
+- **INV-BK-06** : `MerchantDataDeleted` ne permet jamais à un contexte d'effacer les tables d'un autre contexte. Chaque contexte purge uniquement ses propres données, de façon idempotente (INV-TR-03), puis publie `MerchantDataPurged { context, merchantId }` via son Outbox après achèvement local.
+- **INV-ID-07** : la purge Identity supprime le `Merchant`, mais conserve tout `User`; un utilisateur peut être associé à d'autres merchants via ses `RoleAssignments`.
+- **INV-AC-06** : la purge Access Control supprime uniquement les `RoleAssignments` scopés au merchant supprimé. L'audit est conservé et ne contient que les identifiants nécessaires, jamais le contenu des messages.
+- **INV-PC-05** : la purge Platform Connectors détruit les tokens de connexion et supprime connexions et messages locaux du merchant; une reprise ne peut rétablir ni republier de secret supprimé.
+- **INV-RE-05** : la purge Rules Engine supprime uniquement les `RuleSets` de scope merchant; les configurations globales et pays restent intactes.
+- **INV-OD-08** : la purge Order Detection supprime les `Orders`, `Reminders`, `DetectionCandidates` et redirections `ContactReferenceRedirect` locaux du merchant, sans modifier de données CRM ou d'un autre contexte.
+- **INV-CRM-09** : la purge CRM supprime les `Contacts`, segments, historique d'achats, notifications et logs d'envoi locaux du merchant.
+- **INV-TR-06** : chaque purge respecte INV-TR-01 : au plus un Aggregate Root est modifié par transaction. Un marqueur de traitement local rend la cascade reprenable; l'événement de confirmation est Outbox-transactionnel et émis une seule fois par contexte.

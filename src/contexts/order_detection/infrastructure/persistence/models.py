@@ -82,6 +82,22 @@ class ProcessedEventRecord(models.Model):
         ]
 
 
+class MerchantDeletionProgressRecord(models.Model):
+    event_id = models.UUIDField()
+    merchant_id = models.UUIDField()
+    aggregate_type = models.CharField(max_length=32)
+    aggregate_id = models.UUIDField()
+
+    class Meta:
+        db_table = "order_detection_deletion_progress"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["event_id", "aggregate_type", "aggregate_id"],
+                name="uniq_order_detection_deletion_progress",
+            )
+        ]
+
+
 class CandidateOrderCreationLockRecord(models.Model):
     """Stable row used to serialize concurrent Order creation for one candidate."""
 

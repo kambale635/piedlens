@@ -1,1 +1,1 @@
-"""Order Detection infrastructure integration tests."""
+"""Integration tests for Order Detection.""""""Order Detection infrastructure integration tests."""

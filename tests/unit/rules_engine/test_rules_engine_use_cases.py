@@ -1,5 +1,6 @@
 import unittest
 from uuid import uuid4
+from datetime import datetime, timezone
 
 from contexts.rules_engine.application.exceptions import (
     EmptyRulePatternException,
@@ -165,6 +166,43 @@ class RulesEngineUseCaseTests(unittest.TestCase):
         self.assertEqual(first.confidence_score.value, 100)
         self.assertIsNone(duplicate)
         self.assertEqual(len(outbox.events), 1)
+
+    def test_message_evaluated_event_preserves_contact_identity_and_source_time(self):
+        repository = InMemoryRuleSetRepository(
+            [RuleSet.create(RuleScope("global"), (_rule(RuleType.KEYWORD_MATCH, ["order"]),))]
+        )
+        outbox = FakeOutbox()
+        use_case = EvaluateMessageUseCase(
+            repository,
+            FakeCountryReader(),
+            self.evaluators,
+            InMemoryProcessedEvents(),
+            FakeUnitOfWork(),
+            outbox,
+        )
+        event_id = uuid4()
+        connection_id = uuid4()
+        source_timestamp = datetime(2026, 10, 18, tzinfo=timezone.utc)
+
+        use_case.execute(
+            self.merchant_id,
+            uuid4(),
+            "order",
+            False,
+            event_id=event_id,
+            platform_connection_id=connection_id,
+            external_sender_id="external-customer",
+            display_name="Customer",
+            message_event_id=event_id,
+            source_message_timestamp=source_timestamp,
+        )
+
+        event = outbox.events[0]
+        self.assertEqual(event.platform_connection_id, connection_id)
+        self.assertEqual(event.external_sender_id, "external-customer")
+        self.assertEqual(event.display_name, "Customer")
+        self.assertEqual(event.message_event_id, event_id)
+        self.assertEqual(event.source_message_timestamp, source_timestamp)
 
     def test_update_rejects_weight_and_empty_pattern(self):
         use_case = UpdateRuleSetUseCase(InMemoryRuleSetRepository(), FakeUnitOfWork())

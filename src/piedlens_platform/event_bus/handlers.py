@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
+from importlib import import_module
 from uuid import UUID
 
 from django.conf import settings
@@ -122,6 +123,25 @@ def handle_order_status_changed(envelope):
         order_amount=Money(Decimal(str(amount["amount"])), amount["currency"]),
         updated_at=_datetime(payload["updated_at"]),
     )
+
+
+def handle_merchant_data_deleted(envelope):
+    """Dispatch Backup deletion events to the configured context-owned purge handler (INV-BK-06)."""
+    if envelope.get("producedBy") != "backup" or envelope.get("eventType") != "MerchantDataDeleted":
+        return
+    context = settings.CONSUMER_CONTEXT
+    handlers = {
+        "identity": "contexts.identity.infrastructure.messaging.merchant_data_deletion_handler",
+        "access-control": "contexts.access_control.infrastructure.messaging.merchant_data_deletion_handler",
+        "platform-connectors": "contexts.platform_connectors.infrastructure.messaging.merchant_data_deletion_handler",
+        "rules-engine": "contexts.rules_engine.infrastructure.messaging.merchant_data_deletion_handler",
+        "order-detection": "contexts.order_detection.infrastructure.messaging.merchant_data_deletion_handler",
+        "crm": "contexts.crm.infrastructure.messaging.merchant_data_deletion_handler",
+    }
+    module_path = handlers.get(context)
+    if module_path is None:
+        raise ValueError("MerchantDataDeleted consumer context is not configured.")
+    import_module(module_path).handle_merchant_data_deleted(envelope)
 
 
 class _StaticDetectionConfiguration:

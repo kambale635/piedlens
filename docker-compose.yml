@@ -1,16 +1,59 @@
+x-worker-base: &worker_base
+  build: .
+  env_file:
+    - path: .env
+      required: false
+  environment: &worker_environment
+    DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in .env}
+    DJANGO_DEBUG: "0"
+    DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost}
+    POSTGRES_DB: piedlens
+    POSTGRES_USER: piedlens
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: "5432"
+    REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+    REDIS_TLS_CA_CERTS: ${REDIS_TLS_CA_CERTS:-}
+    CONSUMER_CONTEXT: ""
+  depends_on:
+    postgres: {condition: service_healthy}
+    redis: {condition: service_healthy}
+
+x-runtime-base: &runtime_base
+  <<: *worker_base
+  depends_on:
+    postgres: {condition: service_healthy}
+    redis: {condition: service_healthy}
+    migrate: {condition: service_completed_successfully}
+
 services:
+  migrate:
+    <<: *worker_base
+    command: python manage.py migrate --noinput
+    restart: "no"
+
   django:
     build: .
-    command: python manage.py runserver 0.0.0.0:8000
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3
+    env_file:
+      - path: .env
+        required: false
     environment:
-      DJANGO_DEBUG: "1"
-      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      DJANGO_ENV: ${DJANGO_ENV:-development}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-0}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in .env}
       POSTGRES_DB: piedlens
       POSTGRES_USER: piedlens
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      REDIS_URL: redis://redis:6379/0
+      POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-prefer}
+      POSTGRES_SSLROOTCERT: ${POSTGRES_SSLROOTCERT:-}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_TLS_CA_CERTS: ${REDIS_TLS_CA_CERTS:-}
+      BACKUP_OBJECT_STORAGE_BACKEND: ${BACKUP_OBJECT_STORAGE_BACKEND:-postgres}
+      WHATSAPP_ADAPTER: ${WHATSAPP_ADAPTER:-mock}
     ports:
       - "8000:8000"
     volumes:
@@ -20,6 +63,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   postgres:
     image: postgres:16-alpine
@@ -45,6 +90,97 @@ services:
       retries: 10
     volumes:
       - redis_data:/data
+
+  relay-platform-connectors:
+    <<: *runtime_base
+    command: python manage.py run_outbox_relay --context platform-connectors
+
+  relay-rules-engine:
+    <<: *runtime_base
+    command: python manage.py run_outbox_relay --context rules-engine
+
+  relay-backup:
+    <<: *runtime_base
+    command: python manage.py run_outbox_relay --context backup
+
+  backup-s3-deletion-worker:
+    <<: *runtime_base
+    command: python manage.py run_s3_deletion_worker
+    profiles: ["s3"]
+
+  relay-order-detection:
+    <<: *runtime_base
+    command: python manage.py run_outbox_relay --context order-detection
+
+  relay-crm:
+    <<: *runtime_base
+    command: python manage.py run_outbox_relay --context crm
+
+  relay-identity:
+    <<: *runtime_base
+    command: python manage.py run_outbox_relay --context identity
+
+  relay-access-control:
+    <<: *runtime_base
+    command: python manage.py run_outbox_relay --context access-control
+
+  consumer-rules-engine:
+    <<: *runtime_base
+    environment: {<<: *worker_environment, CONSUMER_CONTEXT: rules-engine}
+    command: python manage.py run_stream_consumer --stream platform-connectors.events --context rules-engine --handler piedlens_platform.event_bus.handlers.handle_message_received
+
+  consumer-backup:
+    <<: *runtime_base
+    environment: {<<: *worker_environment, CONSUMER_CONTEXT: backup}
+    command: python manage.py run_stream_consumer --stream platform-connectors.events --context backup --handler piedlens_platform.event_bus.handlers.handle_message_received
+
+  consumer-order-detection:
+    <<: *runtime_base
+    command: python manage.py run_stream_consumer --stream rules-engine.events --context order-detection --handler piedlens_platform.event_bus.handlers.handle_message_evaluated
+
+  consumer-crm-message:
+    <<: *runtime_base
+    environment: {<<: *worker_environment, CONSUMER_CONTEXT: crm}
+    command: python manage.py run_stream_consumer --stream platform-connectors.events --context crm --handler piedlens_platform.event_bus.handlers.handle_message_received
+
+  consumer-crm-evaluation:
+    <<: *runtime_base
+    environment: {<<: *worker_environment, CONSUMER_CONTEXT: order-detection}
+    command: python manage.py run_stream_consumer --stream rules-engine.events --context order-detection --handler piedlens_platform.event_bus.handlers.handle_message_evaluated
+
+  consumer-crm-order:
+    <<: *runtime_base
+    command: python manage.py run_stream_consumer --stream order-detection.events --context crm --handler piedlens_platform.event_bus.handlers.handle_order_status_changed
+
+  consumer-delete-identity:
+    <<: *runtime_base
+    environment: {<<: *worker_environment, CONSUMER_CONTEXT: identity}
+    command: python manage.py run_stream_consumer --stream backup.events --context identity --handler piedlens_platform.event_bus.handlers.handle_merchant_data_deleted
+
+  consumer-delete-access-control:
+    <<: *runtime_base
+    environment: {<<: *worker_environment, CONSUMER_CONTEXT: access-control}
+    command: python manage.py run_stream_consumer --stream backup.events --context access-control --handler piedlens_platform.event_bus.handlers.handle_merchant_data_deleted
+
+  consumer-delete-platform-connectors:
+    <<: *runtime_base
+    environment: {<<: *worker_environment, CONSUMER_CONTEXT: platform-connectors}
+    command: python manage.py run_stream_consumer --stream backup.events --context platform-connectors --handler piedlens_platform.event_bus.handlers.handle_merchant_data_deleted
+
+  consumer-delete-rules-engine:
+    <<: *runtime_base
+    environment: {<<: *worker_environment, CONSUMER_CONTEXT: rules-engine}
+    command: python manage.py run_stream_consumer --stream backup.events --context rules-engine --handler piedlens_platform.event_bus.handlers.handle_merchant_data_deleted
+
+  consumer-delete-order-detection:
+    <<: *runtime_base
+    environment: {<<: *worker_environment, CONSUMER_CONTEXT: order-detection}
+    command: python manage.py run_stream_consumer --stream backup.events --context order-detection --handler piedlens_platform.event_bus.handlers.handle_merchant_data_deleted
+
+  consumer-delete-crm:
+    <<: *runtime_base
+    environment: {<<: *worker_environment, CONSUMER_CONTEXT: crm}
+    command: python manage.py run_stream_consumer --stream backup.events --context crm --handler piedlens_platform.event_bus.handlers.handle_merchant_data_deleted
 
 volumes:
   postgres_data:

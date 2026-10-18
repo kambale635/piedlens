@@ -10,4 +10,6 @@ For session handoff and continuation, follow [METHODE_REPRISE.md](METHODE_REPRIS
 2. Start the services with `docker compose up --build`.
 3. The Django development server listens on `http://localhost:8000`.
 
+Compose runs migrations once before the API and workers start. PostgreSQL object storage is the local default. To use an S3-compatible bucket, set `BACKUP_OBJECT_STORAGE_BACKEND=s3` and the `BACKUP_S3_*` variables in `.env`, then start the queued deletion worker with `docker compose --profile s3 up --build`.
+
 PostgreSQL and Redis are only available on the Compose network. Do not reuse local development credentials in staging or production.

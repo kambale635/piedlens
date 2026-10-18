@@ -3,6 +3,7 @@ import secrets
 from pathlib import Path
 
 from .security_settings import environment_security_settings, validate_production_configuration
+from .observability import initialize_sentry_if_configured
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -96,6 +97,11 @@ OUTBOX_RELAY_BACKOFF_MAX_SECONDS = float(
 STREAM_CLAIM_IDLE_MS = int(os.environ.get("STREAM_CLAIM_IDLE_MS", "60000"))
 STREAM_MAX_DELIVERIES = int(os.environ.get("STREAM_MAX_DELIVERIES", "5"))
 CONSUMER_CONTEXT = os.environ.get("CONSUMER_CONTEXT", "")
+HEALTH_OUTBOX_LAG_ALERT_SECONDS = int(
+    os.environ.get("HEALTH_OUTBOX_LAG_ALERT_SECONDS", "300")
+)
+HEALTH_DLQ_SIZE_ALERT_THRESHOLD = int(os.environ.get("HEALTH_DLQ_SIZE_ALERT_THRESHOLD", "1"))
+HEALTH_METRICS_TOKEN = os.environ.get("HEALTH_METRICS_TOKEN", "")
 ORDER_DETECTION_CONFIDENCE_THRESHOLD = int(
     os.environ.get("ORDER_DETECTION_CONFIDENCE_THRESHOLD", "70")
 )
@@ -236,9 +242,28 @@ if "*" in CORS_ALLOWED_ORIGINS or "null" in CORS_ALLOWED_ORIGINS:
     raise RuntimeError("CORS_ALLOWED_ORIGINS must list exact non-null origins.")
 CORS_ALLOWED_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
 CORS_ALLOWED_HEADERS = ("authorization", "content-type", "x-correlation-id", "x-merchant-id")
+PIEDLENS_ALERT_HOOK = os.environ.get("PIEDLENS_ALERT_HOOK", "")
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+SENTRY_ENVIRONMENT = os.environ.get(
+    "SENTRY_ENVIRONMENT", os.environ.get("DJANGO_ENV", "development")
+)
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 STATIC_URL = "static/"
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "json": {"()": "piedlens_platform.logging.JsonLogFormatter"},
+    },
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "json"},
+    },
+    "root": {"handlers": ["console"], "level": os.environ.get("LOG_LEVEL", "INFO")},
+}
+
+initialize_sentry_if_configured()

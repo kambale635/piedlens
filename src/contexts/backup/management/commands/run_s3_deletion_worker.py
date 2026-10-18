@@ -1,5 +1,3 @@
-import time
-
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
@@ -7,6 +5,7 @@ from contexts.backup.infrastructure.persistence.s3_object_storage import S3Objec
 from contexts.backup.infrastructure.persistence.s3_object_deletion_worker import (
     S3ObjectDeletionWorker,
 )
+from piedlens_platform.worker_shutdown import GracefulShutdown
 
 
 class Command(BaseCommand):
@@ -24,10 +23,12 @@ class Command(BaseCommand):
             backoff_base_seconds=settings.BACKUP_S3_DELETE_BACKOFF_BASE_SECONDS,
             backoff_max_seconds=settings.BACKUP_S3_DELETE_BACKOFF_MAX_SECONDS,
         )
-        while True:
-            deleted, failed = worker.process_once()
-            if deleted or failed:
-                self.stdout.write(f"S3 deletion jobs completed={deleted} retrying={failed}")
-            if options["once"]:
-                return
-            time.sleep(settings.OUTBOX_RELAY_POLL_INTERVAL_SECONDS)
+        with GracefulShutdown() as shutdown:
+            while not shutdown.stop_requested:
+                deleted, failed = worker.process_once()
+                if deleted or failed:
+                    self.stdout.write(f"S3 deletion jobs completed={deleted} retrying={failed}")
+                if options["once"]:
+                    return
+                if shutdown.wait(settings.OUTBOX_RELAY_POLL_INTERVAL_SECONDS):
+                    break

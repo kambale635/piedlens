@@ -38,3 +38,4 @@ Cette matrice distingue l'etat constate a la reprise des preuves qui doivent etr
 
 - Le chiffrement applicatif des messages et exports doit etre prefere. Si son integration avec la sauvegarde ou la recherche rend une operation disproportionnee, documenter avant de choisir l'alternative, ses limites d'exposition et sa cle de chiffrement.
 - Les secrets de fournisseurs reels ne sont pas necessaires aux tests : les adaptateurs restent mock. Aucun secret de production n'est stocke dans le depot ou demande dans une conversation.
+- Le hook Sentry est conditionnel a `SENTRY_DSN`; `sentry-sdk` n'est pas installe dans l'environnement actuel et ne sera ajoute qu'apres accord explicite.

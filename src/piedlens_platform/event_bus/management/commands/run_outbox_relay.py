@@ -1,5 +1,3 @@
-import time
-
 import redis
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
@@ -7,6 +5,7 @@ from django.core.management.base import BaseCommand, CommandError
 from piedlens_platform.event_bus.outbox_models import OUTBOX_MODELS, outbox_model_for
 from piedlens_platform.event_bus.outbox_relay_worker import OutboxRelayWorker
 from piedlens_platform.event_bus.redis_stream_publisher import RedisStreamEventPublisher
+from piedlens_platform.worker_shutdown import GracefulShutdown
 
 
 class Command(BaseCommand):
@@ -34,10 +33,11 @@ class Command(BaseCommand):
             settings.OUTBOX_RELAY_BACKOFF_BASE_SECONDS,
             settings.OUTBOX_RELAY_BACKOFF_MAX_SECONDS,
         )
-        while True:
-            count = worker.publish_batch()
-            if options["once"]:
-                self.stdout.write(str(count))
-                return
-            if count == 0:
-                time.sleep(settings.OUTBOX_RELAY_POLL_INTERVAL_SECONDS)
+        with GracefulShutdown() as shutdown:
+            while not shutdown.stop_requested:
+                count = worker.publish_batch()
+                if options["once"]:
+                    self.stdout.write(str(count))
+                    return
+                if count == 0 and shutdown.wait(settings.OUTBOX_RELAY_POLL_INTERVAL_SECONDS):
+                    break

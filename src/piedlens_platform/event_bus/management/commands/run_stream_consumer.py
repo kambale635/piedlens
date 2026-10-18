@@ -7,6 +7,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from piedlens_platform.event_bus.stream_consumer_worker import RedisStreamConsumerWorker
+from piedlens_platform.worker_shutdown import GracefulShutdown
 
 
 class Command(BaseCommand):
@@ -39,5 +40,6 @@ class Command(BaseCommand):
             settings.STREAM_MAX_DELIVERIES,
         )
         worker.ensure_group()
-        while True:
-            worker.process_once()
+        with GracefulShutdown() as shutdown:
+            while not shutdown.stop_requested:
+                worker.process_once()

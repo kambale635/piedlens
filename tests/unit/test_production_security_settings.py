@@ -32,6 +32,7 @@ class ProductionSecuritySettingsTests(unittest.TestCase):
         environment["CRM_MESSAGE_ENCRYPTION_KEY_V1"] = base64.urlsafe_b64encode(
             b"c" * 32
         ).decode("ascii")
+        environment["HEALTH_METRICS_TOKEN"] = "configured-test-only"
         return environment
 
     def test_each_required_secret_is_rejected_when_missing(self):

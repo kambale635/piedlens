@@ -21,6 +21,8 @@ Ce registre contient des noms de variables uniquement, jamais leurs valeurs. Les
 | `FACEBOOK_WEBHOOK_SECRET` | Console de developpeur du fournisseur; credential absent tant qu'aucun compte n'est provisionne. | Sandbox d'abord; live seulement apres autorisation explicite. | 4, webhook signe; adaptateur reel bloque en attendant. |
 | `BACKUP_EXPORT_SIGNING_SECRET` | Generee par l'exploitant avec un generateur cryptographique; stockee dans le gestionnaire de secrets. | Valeurs distinctes par environnement. | 4, liens d'export signes. |
 | `BACKUP_DELETE_CONFIRMATION_SECRET` | Generee par l'exploitant avec un generateur cryptographique; stockee dans le gestionnaire de secrets. | Valeurs distinctes par environnement. | 4, confirmation de suppression. |
+| `HEALTH_METRICS_TOKEN` | Genere par l'exploitant avec un generateur cryptographique et partage uniquement avec le collecteur de metriques. | Valeurs distinctes par environnement. | 5, acces bearer a `/health/metrics`. |
+| `SENTRY_DSN` | Sentry project settings; creer un projet staging avant tout projet live. | Staging puis live apres approbation. | 5, l'envoi d'evenements Sentry attend l'ajout approuve de `sentry-sdk`; ne pas configurer avant cela. |
 | `BACKUP_S3_ACCESS_KEY_ID` | Role/service account limite au bucket de sauvegarde, cree par l'administrateur du stockage. | Bucket de staging avant tout bucket live. | 5, adaptateur S3 reel; non requis avec le stockage PostgreSQL. |
 | `BACKUP_S3_SECRET_ACCESS_KEY` | Gestionnaire de secrets du fournisseur de stockage, associe au role limite ci-dessus. | Bucket de staging avant tout bucket live. | 5, adaptateur S3 reel; non requis avec le stockage PostgreSQL. |
 

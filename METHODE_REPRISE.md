@@ -78,6 +78,14 @@ Ce document guide toute nouvelle conversation ou reprise de session. Il complete
 - PostgreSQL Compose du projet reste inaccessible faute des variables requises; SQLite ne prouve ni les locks ni le trigger append-only. Redis localhost repond pour les tests Streams/cache.
 - Limites securite : workflow CI distant pas encore observe; PostgreSQL natif/trigger non prouves localement; reconnexion requise pour anciens tokens Identity stateless; TOTP seulement un port; adaptateurs/credentials fournisseurs live absents.
 
+## 2026-10-18 — Etape 5, exploitation
+
+- Derniere sous-etape terminee : endpoints live/ready/metrics, lag Outbox et taille DLQ avec seuils/hook, logs JSON, arret cooperatif SIGTERM/SIGINT, grace Compose 60s et runbook de sauvegarde/restauration PostgreSQL dans `docs/29-operations-runbook.md`.
+- Prochaine action : scenario E2E 6a sur webhook -> Rules Engine -> Order/Contact par les vraies routes et consumers.
+- Validation : `./venv/bin/python manage.py test tests.unit.test_operational_health_and_logging tests.integration.test_operational_metrics tests.unit.test_observability tests.architecture.test_route_security_policy --settings=config.test_settings -v 1` (14/14); `docker compose config -q` reussi avec valeurs jetables; `manage.py check` reussi.
+- Sentry est cable via `SENTRY_DSN`, mais `sentry-sdk` n'est pas present dans le venv. Conformement a la consigne, aucune installation locale; l'activation reelle attend l'approbation d'ajouter cette dependance et la creation d'un DSN staging. Variable seule dans docs/28.
+- La validation PostgreSQL du trigger audit et des scenarios avec DB reelle reste impossible sans credentials; Redis localhost fonctionne.
+
 ## 1. Retrouver le bon etat
 
 1. Confirmer le dossier racine du workspace et identifier les fichiers reellement presents. Ne pas supposer que Git, Docker, PostgreSQL ou des services locaux sont disponibles.

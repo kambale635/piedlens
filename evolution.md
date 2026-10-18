@@ -82,6 +82,15 @@ Mettre a jour ce journal a chaque etape importante.
 - Validation locale : `manage.py check --settings=config.ci_settings`, round-trip des quatre keyrings CI, `pip check`, `git diff --check` passent. Scanners absents du venv, non installes; resultat Bandit/audit/secret scan attend le workflow GitHub.
 - Prochaine action : suite complete locale une seule fois, puis commit securite et bilan. Limites : PostgreSQL du projet non accessible avec credentials disponibles; rotations Backup/CRM a ajouter; CI distante non executee.
 
+## 2026-10-18 - Etape 5 exploitation
+
+- `GET /health/live` confirme uniquement le processus; `GET /health/ready` verifie PostgreSQL + Redis et retourne 503 sans details sensibles.
+- `GET /health/metrics` est protege par `HEALTH_METRICS_TOKEN`, calcule l'age de l'Outbox par contexte et la longueur des DLQ Redis; seuils configurables et hook callable `PIEDLENS_ALERT_HOOK` ajoute. Les erreurs de hook ne font pas echouer la reponse.
+- Logs consolides en JSON avec correlationId et champs autorises; integration Sentry conditionnelle a `SENTRY_DSN`. Workers Outbox, Streams et S3 reagissent a SIGTERM/SIGINT entre lots; Compose leur donne 60 secondes. Runbook Postgres backup/restore ajoute dans docs/29.
+- Validation etape ciblee : 14/14 health, metriques reelles Redis/Outbox, hook alert, logs, Sentry gate et politiques de route; `manage.py check`, Compose `config -q`, whitespace propres.
+- Blocage utilisateur requis : `sentry-sdk` absent du venv; aucune installation effectuee. `SENTRY_DSN` est au registre noms-seulement; activation attend l'approbation de la dependance et un DSN staging.
+- Prochaine etape : scenarios bout-en-bout 6a-d via vraies routes/consumers; PostgreSQL de production Compose toujours non joignable avec les credentials disponibles.
+
 ## 2026-10-18 - Orientation SaaS et durcissement PostgreSQL
 
 - Reprise coherence (etape 1) : les changements interrompus ont ete resumes en cinq lignes dans l'echange, puis commits separes pour port dev/modification devise CRM (`0d44fbd`), enrichissement `MessageEvaluated` (`1f7f59c`), gateway mock/fail-closed (`2bca62d`) et port CRM Identity (`46077bf`). Worktree initialement sale: apres commits, clone temporaire `/tmp/piedlens-clone.LGKSHa/repo` autonome et propre, suite complete 147/147.

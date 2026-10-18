@@ -91,6 +91,13 @@ Mettre a jour ce journal a chaque etape importante.
 - Blocage utilisateur requis : `sentry-sdk` absent du venv; aucune installation effectuee. `SENTRY_DSN` est au registre noms-seulement; activation attend l'approbation de la dependance et un DSN staging.
 - Prochaine etape : scenarios bout-en-bout 6a-d via vraies routes/consumers; PostgreSQL de production Compose toujours non joignable avec les credentials disponibles.
 
+## 2026-10-18 - E2E 6a, webhook vers argent dormant
+
+- Le test `tests/integration/test_e2e_message_to_dormant_order.py` utilise login-token Identity, assignation Access Control reelle, route HTTP de connexion, signature timestamp du webhook, Outbox relays, Redis Streams et handlers Rules Engine/CRM/Order Detection.
+- Le payload configure detecte `purchase`, montant `15000 XOF` et score 100; l'Order `pending_payment` et le Contact sont visibles via le dashboard tenant-protege. Le test vieillit l'Order de deux heures pour franchir le seuil de dormance configurable, sans modifier l'invariant de 24h par defaut.
+- Defaut revele : `DjangoRulesEngineOutbox` tentait d'encoder `Money` brut. Il serialise maintenant cette valeur en `{amount, currency}` dans son contrat JSON.
+- Validation : scenario 6a 1/1 sur SQLite + Redis local; le job CI execute ce meme test sous PostgreSQL/Redis reels. Prochaine sous-etape : scenario 6b, paiement puis livraison et totaux CRM.
+
 ## 2026-10-18 - Orientation SaaS et durcissement PostgreSQL
 
 - Reprise coherence (etape 1) : les changements interrompus ont ete resumes en cinq lignes dans l'echange, puis commits separes pour port dev/modification devise CRM (`0d44fbd`), enrichissement `MessageEvaluated` (`1f7f59c`), gateway mock/fail-closed (`2bca62d`) et port CRM Identity (`46077bf`). Worktree initialement sale: apres commits, clone temporaire `/tmp/piedlens-clone.LGKSHa/repo` autonome et propre, suite complete 147/147.

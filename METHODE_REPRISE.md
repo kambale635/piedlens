@@ -81,10 +81,17 @@ Ce document guide toute nouvelle conversation ou reprise de session. Il complete
 ## 2026-10-18 — Etape 5, exploitation
 
 - Derniere sous-etape terminee : endpoints live/ready/metrics, lag Outbox et taille DLQ avec seuils/hook, logs JSON, arret cooperatif SIGTERM/SIGINT, grace Compose 60s et runbook de sauvegarde/restauration PostgreSQL dans `docs/29-operations-runbook.md`.
-- Prochaine action : scenario E2E 6a sur webhook -> Rules Engine -> Order/Contact par les vraies routes et consumers.
+- Prochaine action : scenario E2E 6b, transitions paiement/livraison puis totaux CRM.
 - Validation : `./venv/bin/python manage.py test tests.unit.test_operational_health_and_logging tests.integration.test_operational_metrics tests.unit.test_observability tests.architecture.test_route_security_policy --settings=config.test_settings -v 1` (14/14); `docker compose config -q` reussi avec valeurs jetables; `manage.py check` reussi.
 - Sentry est cable via `SENTRY_DSN`, mais `sentry-sdk` n'est pas present dans le venv. Conformement a la consigne, aucune installation locale; l'activation reelle attend l'approbation d'ajouter cette dependance et la creation d'un DSN staging. Variable seule dans docs/28.
 - La validation PostgreSQL du trigger audit et des scenarios avec DB reelle reste impossible sans credentials; Redis localhost fonctionne.
+
+## 2026-10-18 — E2E 6a termine
+
+- Derniere sous-etape terminee : webhook signe -> Outbox plateforme -> Redis Streams -> Rules Engine et CRM -> Outbox rules -> consumer Order Detection -> `pending_payment` -> GET dashboard `15000.0000 XOF`; Contact cree via son consumer.
+- Test : `./venv/bin/python manage.py test tests.integration.test_e2e_message_to_dormant_order --settings=config.test_settings -v 1` (1/1, SQLite + Redis local). CI reutilise ce scenario avec PostgreSQL/Redis.
+- Defaut corrige : `Money` est converti en `{amount,currency}` avant JSON dans `DjangoRulesEngineOutbox`.
+- Prochaine sous-etape : E2E 6b, commande payee puis livraison confirmee.
 
 ## 1. Retrouver le bon etat
 

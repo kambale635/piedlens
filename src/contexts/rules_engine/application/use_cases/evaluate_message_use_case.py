@@ -63,6 +63,11 @@ class EvaluateMessageUseCase:
         conversation_context: tuple[dict, ...] = (),
         *,
         event_id: UUID,
+        platform_connection_id: UUID | None = None,
+        external_sender_id: str | None = None,
+        display_name: str = "",
+        message_event_id: UUID | None = None,
+        source_message_timestamp: datetime | None = None,
     ) -> EvaluationResult | None:
         """Evaluate and publish once; return None for an already processed event."""
         with self._unit_of_work:
@@ -77,6 +82,11 @@ class EvaluateMessageUseCase:
                     matched_rule_ids=result.matched_rule_ids,
                     extracted_data=result.extracted_data,
                     occurred_at=datetime.now(timezone.utc),
+                    platform_connection_id=platform_connection_id,
+                    external_sender_id=external_sender_id,
+                    display_name=display_name,
+                    message_event_id=message_event_id or event_id,
+                    source_message_timestamp=source_message_timestamp,
                 )
             )
             self._processed_events.mark_processed(event_id, self.CONSUMER_NAME)

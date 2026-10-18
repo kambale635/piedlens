@@ -14,3 +14,8 @@ class MessageEvaluated:
     extracted_data: dict
     occurred_at: datetime
     event_id: UUID = field(default_factory=uuid4)
+    platform_connection_id: UUID | None = None
+    external_sender_id: str | None = None
+    display_name: str = ""
+    message_event_id: UUID | None = None
+    source_message_timestamp: datetime | None = None

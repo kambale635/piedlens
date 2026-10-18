@@ -9,6 +9,8 @@ Mettre a jour ce journal a chaque etape importante.
 - Environnement : `redis-cli ping` repond `PONG`; le venv existant `venv/` est utilise directement car le terminal outil n'avait pas son activation. Aucune dependance ni environnement n'a ete installe ou recree.
 - Transport Redis valide : tests `test_outbox_relay` et `test_redis_stream_consumer`, 4/4. Le test Outbox verifie maintenant `PING` dans son setup et produit un echec explicite si Redis est inaccessible; l'injection `REDIS_URL=redis://localhost:1/0` confirme l'echec sans skip.
 - Point de reprise confirme : le relay/consumer est termine; la suppression distribuee des donnees merchant reste la prochaine etape, ses handlers n'etant pas presents. Le stockage S3 et le Compose de deploiement restent ensuite a verifier.
+- Identity — purge merchant terminee : le consumer `MerchantDataDeleted` supprime uniquement le `Merchant`, conserve les `User`, inscrit `(event_id, consumer_name)` et `MerchantDataPurged` atomiquement; handler d'enveloppe et migration ajoutes (INV-ID-07, INV-BK-06, INV-TR-01/03).
+- Validation Identity : tests unitaires et integration du handler, 8/8; migrations appliquees par le test. Prochaine etape : purge locale idempotente Access Control, puis Platform Connectors, Rules Engine, Order Detection et CRM.
 
 ## 2026-10-17 - Reprise de la phase avant production
 

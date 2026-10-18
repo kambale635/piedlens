@@ -25,3 +25,13 @@ class MerchantPlanChanged:
     effective_at: datetime
     event_id: UUID = field(default_factory=uuid4)
     occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass(frozen=True)
+class MerchantDataPurged:
+    """Identity confirmation that its local merchant data purge completed (INV-BK-06)."""
+
+    context: str
+    merchant_id: UUID
+    occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    event_id: UUID = field(default_factory=uuid4)

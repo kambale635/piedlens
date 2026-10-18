@@ -28,6 +28,21 @@ class MerchantRecord(models.Model):
         db_table = "identity_merchants"
 
 
+class ProcessedEventRecord(models.Model):
+    event_id = models.UUIDField()
+    consumer_name = models.CharField(max_length=160)
+    processed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "identity_processed_events"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["event_id", "consumer_name"],
+                name="uniq_identity_processed_event_consumer",
+            )
+        ]
+
+
 class OutboxEventRecord(models.Model):
     event_id = models.UUIDField(primary_key=True)
     event_type = models.CharField(max_length=160)

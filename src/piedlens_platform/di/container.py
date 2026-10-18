@@ -110,11 +110,13 @@ from contexts.identity.application.use_cases.change_subscription_plan_use_case i
 from contexts.identity.application.use_cases.create_merchant_use_case import CreateMerchantUseCase
 from contexts.identity.application.use_cases.refresh_access_token_use_case import RefreshAccessTokenUseCase
 from contexts.identity.application.use_cases.register_user_use_case import RegisterUserUseCase
+from contexts.identity.application.use_cases.purge_merchant_data_use_case import PurgeMerchantDataUseCase
 from contexts.identity.infrastructure.adapters.django_security_services import DjangoPasswordHasher, DjangoTokenService
 from contexts.identity.infrastructure.adapters.system_clock import SystemIdentityClock
 from contexts.identity.infrastructure.messaging.django_identity_outbox import DjangoIdentityOutbox
 from contexts.identity.infrastructure.persistence.django_identity_repositories import (
     DjangoMerchantRepository,
+    DjangoIdentityProcessedEventRepository,
     DjangoUserRepository,
 )
 from contexts.identity.infrastructure.persistence.django_identity_unit_of_work import DjangoIdentityUnitOfWork
@@ -541,6 +543,16 @@ class ApplicationContainer:
         return CreateMerchantUseCase(
             DjangoMerchantRepository(), DjangoIdentityUnitOfWork(), DjangoIdentityOutbox(),
             SystemIdentityClock(),
+        )
+
+    @staticmethod
+    def purge_identity_merchant_data() -> PurgeMerchantDataUseCase:
+        """Wire Identity-owned merchant deletion with its transactional Outbox (INV-BK-06)."""
+        return PurgeMerchantDataUseCase(
+            merchants=DjangoMerchantRepository(),
+            processed_events=DjangoIdentityProcessedEventRepository(),
+            unit_of_work=DjangoIdentityUnitOfWork(),
+            outbox=DjangoIdentityOutbox(),
         )
 
     @staticmethod

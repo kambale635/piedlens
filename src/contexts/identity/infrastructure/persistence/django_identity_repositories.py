@@ -12,7 +12,7 @@ from contexts.identity.domain.value_objects.identity_values import (
     UserStatus,
 )
 from contexts.identity.application.exceptions.identity_exceptions import PhoneAlreadyRegistered
-from .models import MerchantRecord, UserRecord
+from .models import MerchantRecord, ProcessedEventRecord, UserRecord
 
 
 class DjangoUserRepository:
@@ -69,6 +69,10 @@ class DjangoMerchantRepository:
             },
         )
 
+    def delete_by_id(self, merchant_id) -> None:
+        """Delete only the Identity-owned Merchant root and retain User records (INV-ID-07)."""
+        MerchantRecord.objects.filter(id=merchant_id).delete()
+
     @staticmethod
     def _to_domain(record: MerchantRecord) -> Merchant:
         return Merchant(
@@ -79,4 +83,22 @@ class DjangoMerchantRepository:
             CurrencyCode(record.currency),
             SubscriptionPlan(record.subscription_plan),
             record.created_at,
+        )
+
+
+class DjangoIdentityProcessedEventRepository:
+    """Persist Identity consumer idempotency markers (INV-TR-03)."""
+
+    def has_processed(self, event_id, consumer_name: str) -> bool:
+        """Check the event/consumer key before applying local effects (INV-TR-03)."""
+        return ProcessedEventRecord.objects.filter(
+            event_id=event_id,
+            consumer_name=consumer_name,
+        ).exists()
+
+    def mark_processed(self, event_id, consumer_name: str) -> None:
+        """Record completion in the same transaction as the purge and Outbox event (INV-TR-03)."""
+        ProcessedEventRecord.objects.get_or_create(
+            event_id=event_id,
+            consumer_name=consumer_name,
         )

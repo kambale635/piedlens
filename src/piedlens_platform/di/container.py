@@ -226,6 +226,9 @@ from contexts.rules_engine.application.use_cases.evaluate_message_use_case impor
 from contexts.rules_engine.application.use_cases.update_rule_set_use_case import (
     UpdateRuleSetUseCase,
 )
+from contexts.rules_engine.application.use_cases.purge_merchant_data_use_case import (
+    PurgeMerchantDataUseCase as PurgeRulesEngineMerchantDataUseCase,
+)
 from contexts.rules_engine.domain.value_objects.rule_type import RuleType
 from contexts.rules_engine.domain.services.rule_evaluators import (
     AmountPatternEvaluator,
@@ -244,6 +247,9 @@ from contexts.rules_engine.infrastructure.persistence.django_rule_set_repository
 )
 from contexts.rules_engine.infrastructure.persistence.django_unit_of_work import (
     DjangoRulesEngineUnitOfWork,
+)
+from contexts.rules_engine.infrastructure.persistence.django_merchant_data_purger import (
+    DjangoRulesEngineMerchantPurger,
 )
 from contexts.backup.application.use_cases.check_account_health_use_case import (
     CheckAccountHealthUseCase,
@@ -667,6 +673,16 @@ class ApplicationContainer:
         return UpdateRuleSetUseCase(
             rule_sets=DjangoRuleSetRepository(),
             unit_of_work=DjangoRulesEngineUnitOfWork(),
+        )
+
+    @staticmethod
+    def purge_rules_engine_merchant_data() -> PurgeRulesEngineMerchantDataUseCase:
+        """Wire merchant RuleSet cleanup and transactional completion (INV-RE-05)."""
+        return PurgeRulesEngineMerchantDataUseCase(
+            purger=DjangoRulesEngineMerchantPurger(),
+            processed_events=DjangoRulesProcessedEventRepository(),
+            unit_of_work=DjangoRulesEngineUnitOfWork(),
+            outbox=DjangoRulesEngineOutbox(),
         )
 
     @staticmethod

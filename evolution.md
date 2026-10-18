@@ -15,6 +15,8 @@ Mettre a jour ce journal a chaque etape importante.
 - Validation Access Control : tests unitaires et integration 8/8; `makemigrations access_control --check --dry-run` sans changement. Prochaine etape : purge Platform Connectors.
 - Platform Connectors — purge merchant terminee : connexions et tokens chiffres detruits avant les messages; chaque enregistrement a un checkpoint atomique. Les ecritures de message verrouillent et revalident la connexion pour empecher une recreation apres purge (INV-PC-05, INV-BK-06, INV-TR-01/03).
 - Validation Platform Connectors : tests unitaires/integration 12/12; `makemigrations platform_connectors --check --dry-run` sans changement. Prochaine etape : purge Rules Engine.
+- Rules Engine — purge merchant terminee : suppression reprenable uniquement du RuleSet `merchant:<id>`; les configurations pays/globales et les autres merchants restent intactes. Marqueur idempotent et `MerchantDataPurged` via Outbox (INV-RE-05, INV-BK-06, INV-TR-01/03).
+- Validation Rules Engine : tests unitaires/integration 7/7; `makemigrations rules_engine --check --dry-run` sans changement. Prochaine etape : purge Order Detection.
 
 ## 2026-10-17 - Reprise de la phase avant production
 

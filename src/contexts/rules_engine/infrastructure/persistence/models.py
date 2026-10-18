@@ -32,6 +32,21 @@ class ProcessedEventRecord(models.Model):
         ]
 
 
+class MerchantDeletionProgressRecord(models.Model):
+    event_id = models.UUIDField()
+    merchant_id = models.UUIDField()
+    rule_set_id = models.UUIDField()
+
+    class Meta:
+        db_table = "rules_engine_deletion_progress"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["event_id", "rule_set_id"],
+                name="uniq_rules_engine_deletion_progress",
+            )
+        ]
+
+
 class OutboxEventRecord(models.Model):
     """Durable producer event row committed with Rules Engine writes (INV-TR-02)."""
 

@@ -40,6 +40,48 @@ Mettre a jour ce journal a chaque etape importante.
 - `docs/25-context-identity.md` precise le stockage d'un hash de refresh token, le port de backoff et le port TOTP sans adaptateur.
 - Prochaine sous-etape : persister les sessions Identity sans relation ORM inter-contexte, puis tester rotation, rejeu, logout et revocation globale.
 
+## 2026-10-18 - Etape 4 securite : cycle d'authentification
+
+- Ajoute `identity_auth_sessions` avec hash unique du refresh token, famille, expiration, revocation et lien UUID de remplacement, sans ForeignKey.
+- Le refresh tourne sous `select_for_update`; le rejeu d'un token consomme revoque les sessions actives de sa famille. Logout revoque une session sans oracle; logout-all invalide toutes les sessions du principal.
+- Les access tokens sont lies a une session et invalides des sa revocation. Register utilise les validateurs Django; login applique un backoff cache exponentiel borne par IP source + telephone. `ITotpVerifier` est defini sans adaptateur.
+- Validation : cycle HTTP 3/3; tests validateurs/backoff 2/2; tests Identity unitaires + API 8/8.
+- Piege de deploiement : les anciens tokens signes stateless ne portent ni `sid` ni ligne de session et seront refuses; les clients devront se reconnecter apres migration `identity.0005`.
+- Prochaine sous-etape : webhook, avec signature timestamp-aware et protection anti-rejeu Redis.
+
+## 2026-10-18 - Etape 4 securite : verification des webhooks
+
+- Le webhook exige `X-Webhook-Timestamp`; le HMAC-SHA256 couvre l'horodatage et le corps brut, compare par `hmac.compare_digest`. Timestamp non ASCII, non canonique, absent ou hors tolerance refuse avant parsing.
+- Apres verification, `DjangoWebhookReplayCache` utilise `cache.add` atomique et un TTL de deux tolerances; un doublon valide est acquitte avec zero message et aucun parseur n'est appele.
+- La tolerance vient de `PLATFORM_WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS` (defaut 300, valeur non positive refusee au demarrage). Le format generique est mock-only; les signatures natives attendront les adaptateurs reels et leurs identifiants fournisseur.
+- Validation : tests unitaires Platform Connectors + integration Redis 20/20, deux executions successives apres durcissement timestamp.
+- Prochaine sous-etape : routeur et tenant, en-tetes HTTP, audit append-only et test de capture des logs.
+
+## 2026-10-18 - Etape 4 securite : routes, transport et audit
+
+- `tests/architecture/test_route_security_policy.py` parcourt tout le resolver et exige permission ou declaration publique explicite. Le test HTTP tenant assigne un vrai role uniquement a A, confirme lecture A seule/ecriture B refusee et itere toutes les routes permissionnees sous le scope B (403).
+- HSTS, cookies securises, redirect HTTPS, nosniff, referrer/frame headers, CORS a origines exactes et limite de requete (413) sont branches et configures par environnement; CORS vide par defaut, meme en production.
+- `event_bus_audit_log` stocke uniquement correlation/user/merchant/permission/outcome/route; manager + modele interdisent update/delete et migration PostgreSQL ajoute un trigger SQL. Les exceptions inconnues ne journalisent plus leur texte brut.
+- Validation combinee : 12 tests, 11 passes et 1 test de trigger saute sous SQLite; inclut tenant A/B, resolver exhaustif, headers/CORS/body, audit append-only et capture logs. La validation du trigger PostgreSQL reste a faire.
+- Suite : chiffrement applicatif des contenus messages/export, puis CI Bandit/pip-audit/secret scan et versions figees.
+
+## 2026-10-18 - Etape 4 securite : chiffrement applicatif du contenu
+
+- Snapshots et exports chiffres AES-256-GCM versionne dans les adaptateurs PostgreSQL et S3; les objets plaintext historiques sont re-chiffres au premier read. Les tests prouvent que le stockage brut ne contient pas le payload.
+- `MessageRecord.text_content`, la copie `MessageReceived` dans Outbox et le payload Redis restent chiffres; seul le handler Rules Engine dechiffre avant evaluation. `rotate_platform_message_content` re-chiffre chaque message et event dans une transaction distincte.
+- Les templates de campagnes CRM sont chiffres par une cle versionnee propre au contexte et dechiffres par le worker; les anciens templates plaintext migrent au premier chargement.
+- Les keyrings possedent chacun leur commande de rotation : `rotate_platform_message_content`, `rotate_backup_payloads`, `rotate_campaign_content`; les tokens plateforme utilisent `rotate_platform_tokens`.
+- Validation chiffrement/rotation : 20 tests, 19 passes et un test PostgreSQL saute sous SQLite; Backup DB/S3, CRM, Outbox/Redis et handler couverts.
+- Le registre 28 liste les keyrings Platform, Backup et CRM; les settings de test utilisent des cles deterministes qui ne servent qu'a la suite locale.
+- Garder toutes les anciennes versions jusqu'a completion et verification de la commande correspondante. Les donnees historiques non versionnees migrent au read ou via la commande.
+
+## 2026-10-18 - Etape 4 securite : scans et dependances
+
+- `requirements.txt` fige les versions exactes Runtime et transitives relevees dans le venv existant; aucune installation/recreation n'a ete faite. `pip check` est propre.
+- Le workflow ajoute Bandit 1.8.6, pip-audit 2.9.0, Gitleaks 2.3.9 et garde PostgreSQL 16/Redis 7. `config.ci_settings` fournit des keyrings deterministes non-production sans remplacer PostgreSQL/Redis.
+- Validation locale : `manage.py check --settings=config.ci_settings`, round-trip des quatre keyrings CI, `pip check`, `git diff --check` passent. Scanners absents du venv, non installes; resultat Bandit/audit/secret scan attend le workflow GitHub.
+- Prochaine action : suite complete locale une seule fois, puis commit securite et bilan. Limites : PostgreSQL du projet non accessible avec credentials disponibles; rotations Backup/CRM a ajouter; CI distante non executee.
+
 ## 2026-10-18 - Orientation SaaS et durcissement PostgreSQL
 
 - Reprise coherence (etape 1) : les changements interrompus ont ete resumes en cinq lignes dans l'echange, puis commits separes pour port dev/modification devise CRM (`0d44fbd`), enrichissement `MessageEvaluated` (`1f7f59c`), gateway mock/fail-closed (`2bca62d`) et port CRM Identity (`46077bf`). Worktree initialement sale: apres commits, clone temporaire `/tmp/piedlens-clone.LGKSHa/repo` autonome et propre, suite complete 147/147.

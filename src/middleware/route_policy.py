@@ -39,5 +39,11 @@ def emit_audit(request, outcome: str, permission: str | None = None) -> None:
         "outcome": outcome,
         "route": getattr(request, "path", ""),
     }
+    if isinstance(sink, str):
+        from django.utils.module_loading import import_string
+
+        sink = import_string(sink)
+        if isinstance(sink, type):
+            sink = sink()
     if sink is not None:
         sink(event)

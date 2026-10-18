@@ -16,8 +16,13 @@ class RefreshAccessTokenUseCase:
             issued = self.token_service.refresh_access_token(refresh_token)
             user = self.users.find_by_id(issued["userId"])
             if user is None or user.status is not UserStatus.ACTIVE:
+                self.token_service.revoke_refresh_token(issued["refreshToken"])
                 raise InvalidRefreshToken()
-            return {"accessToken": issued["accessToken"], "expiresAt": issued["expiresAt"]}
+            return {
+                "accessToken": issued["accessToken"],
+                "refreshToken": issued["refreshToken"],
+                "expiresAt": issued["expiresAt"],
+            }
         except InvalidRefreshToken:
             raise
         except Exception as error:

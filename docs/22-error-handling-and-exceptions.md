@@ -29,6 +29,7 @@ InfrastructureException (abstraite)
 | Exception | Code HTTP | errorCode |
 |---|---|---|
 | `ValidationException` | 400 | `VALIDATION_ERROR` |
+| `RequestDataTooBig` / corps HTTP au-dessus de la limite configuree | 413 | `REQUEST_TOO_LARGE` |
 | `AuthenticationRequiredException` | 401 | `UNAUTHENTICATED` |
 | `InsufficientPrivilegeException` | 403 | `FORBIDDEN` |
 | `ResourceNotFoundException` | 404 | `NOT_FOUND` |
@@ -55,7 +56,7 @@ InfrastructureException (abstraite)
 
 ## Règle de sécurité stricte sur les erreurs 500
 
-Une exception non prévue (`500 INTERNAL_ERROR`) ne renvoie **jamais** la stack trace, le message d'exception brut, ni aucun détail d'implémentation au client — uniquement `errorCode: "INTERNAL_ERROR"` et le `correlationId`. Le détail complet est loggé côté serveur (avec le `correlationId` pour le retrouver), jamais exposé côté client. Fuiter une stack trace est une vulnérabilité de sécurité classique (révèle la structure interne, les versions de librairies, parfois des secrets) — jamais toléré, même en développement une fois que l'habitude de coder est prise.
+Une exception non prévue (`500 INTERNAL_ERROR`) ne renvoie **jamais** la stack trace, le message d'exception brut, ni aucun détail d'implémentation au client — uniquement `errorCode: "INTERNAL_ERROR"` et le `correlationId`. Les logs d'application ne conservent que le `correlationId` et le type d'exception; ils n'enregistrent jamais le texte brut d'exception, qui pourrait contenir un message client ou une donnée de paiement.
 
 ## Règle pour le domaine (rappel, cohérent avec `03-solid-principles.md`)
 

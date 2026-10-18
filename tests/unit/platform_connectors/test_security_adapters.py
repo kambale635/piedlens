@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import hmac
+import time
 import unittest
 
 from django.test import override_settings
@@ -52,15 +53,22 @@ class PlatformSecurityAdapterTests(unittest.TestCase):
             self.assertTrue(new_token.value.startswith("v2."))
             self.assertEqual(rotating_cipher.decrypt(new_token), "provider-secret")
 
-    @override_settings(PLATFORM_WEBHOOK_SECRETS={"whatsapp": "local-test-secret"})
-    def test_signature_verifier_accepts_only_valid_raw_body_hmac(self):
+    @override_settings(
+        PLATFORM_WEBHOOK_SECRETS={"whatsapp": "local-test-secret"},
+        PLATFORM_WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS=60,
+    )
+    def test_signature_verifier_requires_fresh_timestamp_and_valid_raw_body_hmac(self):
         body = b'{"messages":[]}'
-        digest = hmac.new(b"local-test-secret", body, hashlib.sha256).hexdigest()
+        timestamp = str(int(time.time()))
+        signed_body = timestamp.encode("ascii") + b"." + body
+        digest = hmac.new(b"local-test-secret", signed_body, hashlib.sha256).hexdigest()
         verifier = DjangoWebhookSignatureVerifier()
 
-        self.assertTrue(verifier.verify("whatsapp", body, f"sha256={digest}"))
-        self.assertFalse(verifier.verify("whatsapp", body + b" ", f"sha256={digest}"))
-        self.assertFalse(verifier.verify("instagram", body, f"sha256={digest}"))
+        self.assertTrue(verifier.verify("whatsapp", body, f"sha256={digest}", timestamp))
+        self.assertFalse(verifier.verify("whatsapp", body + b" ", f"sha256={digest}", timestamp))
+        self.assertFalse(verifier.verify("whatsapp", body, f"sha256={digest}", "1"))
+        self.assertFalse(verifier.verify("whatsapp", body, f"sha256={digest}", "１２３"))
+        self.assertFalse(verifier.verify("instagram", body, f"sha256={digest}", timestamp))
 
     @override_settings(PLATFORM_ADAPTERS={"fake_channel": "mock"})
     def test_configured_gateway_uses_mock_adapter(self):

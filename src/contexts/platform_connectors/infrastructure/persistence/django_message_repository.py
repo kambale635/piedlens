@@ -1,9 +1,13 @@
 from ...domain.entities.message import Message
+from ..adapters.django_message_content_cipher import DjangoMessageContentCipher
 from .models import MessageRecord, PlatformConnectionRecord
 
 
 class DjangoMessageRepository:
     """Persist normalized messages idempotently using the database uniqueness key (INV-PC-03)."""
+
+    def __init__(self, content_cipher=None) -> None:
+        self._content_cipher = content_cipher or DjangoMessageContentCipher()
 
     def save_if_new(self, message: Message) -> bool:
         """Return true only for the first message with this connection/external ID pair."""
@@ -21,7 +25,7 @@ class DjangoMessageRepository:
                 "merchant_id": message.merchant_id,
                 "external_sender_id": message.external_sender_id,
                 "display_name": message.display_name,
-                "text_content": message.text_content,
+                "text_content": self._content_cipher.encrypt(message.text_content),
                 "received_at": message.received_at,
             },
         )

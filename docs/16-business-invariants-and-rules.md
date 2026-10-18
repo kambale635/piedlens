@@ -109,4 +109,5 @@
 - **INV-RE-05** : la purge Rules Engine supprime uniquement les `RuleSets` de scope merchant; les configurations globales et pays restent intactes.
 - **INV-OD-08** : la purge Order Detection supprime les `Orders`, `Reminders`, `DetectionCandidates` et redirections `ContactReferenceRedirect` locaux du merchant, sans modifier de données CRM ou d'un autre contexte.
 - **INV-CRM-09** : la purge CRM supprime les `Contacts` (historique d'achats inclus), segments, notifications, campagnes et journaux de destinataires locaux du merchant.
+- **INV-CRM-10** : le texte des campagnes CRM persistées est chiffré par une clé applicative versionnée; seul le worker de livraison le déchiffre, et le plaintext n'est jamais journalisé.
 - **INV-TR-06** : chaque purge respecte INV-TR-01 : au plus un Aggregate Root est modifié par transaction. Un marqueur de traitement local rend la cascade reprenable; l'événement de confirmation est Outbox-transactionnel et émis une seule fois par contexte.

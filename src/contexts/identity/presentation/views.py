@@ -30,7 +30,9 @@ def register(request):
 def login(request):
     payload = _body(request)
     result = ApplicationContainer.authenticate_user().execute(
-        payload.get("phoneNumber", ""), payload.get("password", "")
+        payload.get("phoneNumber", ""),
+        payload.get("password", ""),
+        request.META.get("REMOTE_ADDR", ""),
     )
     return JsonResponse(result, encoder=DjangoJSONEncoder)
 
@@ -40,6 +42,22 @@ def login(request):
 @require_http_methods(["POST"])
 def refresh(request):
     result = ApplicationContainer.refresh_access_token().execute(_body(request).get("refreshToken", ""))
+    return JsonResponse(result, encoder=DjangoJSONEncoder)
+
+
+@csrf_exempt
+@public_route
+@require_http_methods(["POST"])
+def logout(request):
+    result = ApplicationContainer.logout_user().execute(_body(request).get("refreshToken", ""))
+    return JsonResponse(result, encoder=DjangoJSONEncoder)
+
+
+@csrf_exempt
+@public_route(authentication_required=True)
+@require_http_methods(["POST"])
+def logout_all(request):
+    result = ApplicationContainer.revoke_all_sessions().execute(request.user.id)
     return JsonResponse(result, encoder=DjangoJSONEncoder)
 
 

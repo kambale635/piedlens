@@ -30,7 +30,13 @@ class IChannelHealthChecker(Protocol):
 
 
 class IWebhookSignatureVerifier(Protocol):
-    def verify(self, channel_code: str, raw_body: bytes, signature: str) -> bool: ...
+    def verify(
+        self, channel_code: str, raw_body: bytes, signature: str, timestamp: str
+    ) -> bool: ...
+
+
+class IWebhookReplayCache(Protocol):
+    def claim(self, channel_code: str, replay_key: str, ttl_seconds: int) -> bool: ...
 
 
 class ITokenRefresher(Protocol):

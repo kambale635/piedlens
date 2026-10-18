@@ -1,11 +1,16 @@
 import json
+import hashlib
 from uuid import UUID
 
 from shared_kernel.application_exceptions import ValidationException
 
 from ...domain.events.platform_events import MessageReceived
 from ..exceptions import InvalidWebhookSignatureException, PlatformConnectionNotFoundException
-from ..ports.channel_capabilities import IWebhookMessageNormalizer, IWebhookSignatureVerifier
+from ..ports.channel_capabilities import (
+    IWebhookMessageNormalizer,
+    IWebhookReplayCache,
+    IWebhookSignatureVerifier,
+)
 from ..ports.channel_provider_registry import IChannelProviderRegistry
 from ..ports.platform_ports import (
     IMessageRepository,
@@ -28,6 +33,8 @@ class HandleIncomingWebhookUseCase:
         connections: IPlatformConnectionRepository,
         messages: IMessageRepository,
         providers: IChannelProviderRegistry,
+        replay_cache: IWebhookReplayCache,
+        replay_ttl_seconds: int,
         unit_of_work: IPlatformConnectorsUnitOfWork,
         outbox: IPlatformConnectorsOutbox,
     ) -> None:
@@ -35,14 +42,25 @@ class HandleIncomingWebhookUseCase:
         self._connections = connections
         self._messages = messages
         self._providers = providers
+        self._replay_cache = replay_cache
+        self._replay_ttl_seconds = replay_ttl_seconds
         self._unit_of_work = unit_of_work
         self._outbox = outbox
 
-    def execute(self, platform_type: str, raw_body: bytes, signature: str) -> dict:
+    def execute(
+        self, platform_type: str, raw_body: bytes, signature: str, timestamp: str = ""
+    ) -> dict:
         """Reject unsigned payloads before decoding or persisting any content (INV-PC-02)."""
         verifier = self._providers.require(platform_type, IWebhookSignatureVerifier)
-        if not verifier.verify(platform_type, raw_body, signature):
+        if not verifier.verify(platform_type, raw_body, signature, timestamp):
             raise InvalidWebhookSignatureException("Webhook signature is invalid.")
+        replay_key = hashlib.sha256(
+            platform_type.encode("utf-8") + b"\0" + timestamp.encode("ascii") + b"\0" + raw_body
+        ).hexdigest()
+        if not self._replay_cache.claim(
+            platform_type, replay_key, self._replay_ttl_seconds
+        ):
+            return {"accepted_count": 0}
         try:
             payload = json.loads(raw_body)
             connection_id = UUID(str(payload["platformConnectionId"]))

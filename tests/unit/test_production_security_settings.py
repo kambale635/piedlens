@@ -20,6 +20,18 @@ class ProductionSecuritySettingsTests(unittest.TestCase):
         environment["PLATFORM_TOKEN_ENCRYPTION_KEY_V1"] = base64.urlsafe_b64encode(
             b"k" * 32
         ).decode("ascii")
+        environment["BACKUP_DATA_ENCRYPTION_ACTIVE_VERSION"] = "v1"
+        environment["BACKUP_DATA_ENCRYPTION_KEY_V1"] = base64.urlsafe_b64encode(
+            b"b" * 32
+        ).decode("ascii")
+        environment["PLATFORM_MESSAGE_ENCRYPTION_ACTIVE_VERSION"] = "v1"
+        environment["PLATFORM_MESSAGE_ENCRYPTION_KEY_V1"] = base64.urlsafe_b64encode(
+            b"m" * 32
+        ).decode("ascii")
+        environment["CRM_MESSAGE_ENCRYPTION_ACTIVE_VERSION"] = "v1"
+        environment["CRM_MESSAGE_ENCRYPTION_KEY_V1"] = base64.urlsafe_b64encode(
+            b"c" * 32
+        ).decode("ascii")
         return environment
 
     def test_each_required_secret_is_rejected_when_missing(self):
@@ -50,6 +62,17 @@ class ProductionSecuritySettingsTests(unittest.TestCase):
         environment["PLATFORM_TOKEN_ENCRYPTION_KEY_V1"] = "invalid"
 
         with self.assertRaisesRegex(RuntimeError, "PLATFORM_TOKEN_ENCRYPTION_KEY_V1"):
+            validate_production_configuration(environment)
+
+    def test_backup_and_message_encryption_keys_are_required_and_valid(self):
+        environment = self._complete_environment()
+        del environment["BACKUP_DATA_ENCRYPTION_KEY_V1"]
+        with self.assertRaisesRegex(RuntimeError, "BACKUP_DATA_ENCRYPTION_KEY_V1"):
+            validate_production_configuration(environment)
+
+        environment = self._complete_environment()
+        environment["PLATFORM_MESSAGE_ENCRYPTION_KEY_V1"] = "invalid"
+        with self.assertRaisesRegex(RuntimeError, "PLATFORM_MESSAGE_ENCRYPTION_KEY_V1"):
             validate_production_configuration(environment)
 
     def test_nonproduction_does_not_require_deployment_secrets(self):

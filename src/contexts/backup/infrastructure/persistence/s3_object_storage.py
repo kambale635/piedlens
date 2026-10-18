@@ -8,13 +8,15 @@ from django.conf import settings
 from ...application.exceptions import BackupSnapshotNotFoundException
 from .models import S3ObjectDeletionRecord
 from .django_object_storage import DjangoObjectStorage
+from .django_backup_payload_cipher import DjangoBackupPayloadCipher
 
 
 class S3ObjectStorage:
     """Store JSON backup objects in an S3-compatible bucket using presigned URLs."""
 
-    def __init__(self, client=None) -> None:
+    def __init__(self, client=None, payload_cipher=None) -> None:
         self._bucket = settings.BACKUP_S3_BUCKET
+        self._payload_cipher = payload_cipher or DjangoBackupPayloadCipher()
         if client is None:
             import boto3
             from botocore.config import Config
@@ -37,7 +39,7 @@ class S3ObjectStorage:
         self._client.put_object(
             Bucket=self._bucket,
             Key=key,
-            Body=json.dumps(file, default=str).encode("utf-8"),
+            Body=json.dumps(self._payload_cipher.encrypt(file)).encode("utf-8"),
             ContentType="application/json",
             ServerSideEncryption="AES256",
         )
@@ -49,7 +51,36 @@ class S3ObjectStorage:
             response = self._client.get_object(Bucket=self._bucket, Key=reference)
         except self._client.exceptions.NoSuchKey as error:
             raise BackupSnapshotNotFoundException("Stored backup object was not found.") from error
-        return json.loads(response["Body"].read())
+        envelope = json.loads(response["Body"].read())
+        payload = self._payload_cipher.decrypt(envelope)
+        if self._payload_cipher.key_version(envelope) != self._payload_cipher.active_version:
+            self._client.put_object(
+                Bucket=self._bucket,
+                Key=reference,
+                Body=json.dumps(self._payload_cipher.encrypt(payload)).encode("utf-8"),
+                ContentType="application/json",
+                ServerSideEncryption="AES256",
+            )
+        return payload
+
+    def rotate_object(self, reference: str) -> bool:
+        """Re-encrypt one remote object in place while retaining its storage reference."""
+        try:
+            response = self._client.get_object(Bucket=self._bucket, Key=reference)
+        except self._client.exceptions.NoSuchKey:
+            return False
+        envelope = json.loads(response["Body"].read())
+        if self._payload_cipher.key_version(envelope) == self._payload_cipher.active_version:
+            return False
+        payload = self._payload_cipher.decrypt(envelope)
+        self._client.put_object(
+            Bucket=self._bucket,
+            Key=reference,
+            Body=json.dumps(self._payload_cipher.encrypt(payload)).encode("utf-8"),
+            ContentType="application/json",
+            ServerSideEncryption="AES256",
+        )
+        return True
 
     def generate_signed_url(self, reference: str, expires_in_minutes: int) -> str:
         """Return an S3-compatible presigned GET URL with bounded expiry."""

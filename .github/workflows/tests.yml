@@ -34,6 +34,7 @@ jobs:
           --health-timeout 3s
           --health-retries 10
     env:
+      DJANGO_ENV: test
       DJANGO_SECRET_KEY: ci-only-test-key
       DJANGO_DEBUG: "0"
       DJANGO_ALLOWED_HOSTS: localhost
@@ -53,5 +54,24 @@ jobs:
           cache-dependency-path: requirements.txt
       - name: Install backend dependencies
         run: python -m pip install -r requirements.txt
+      - name: Bandit security scan
+        run: |
+          python -m pip install bandit==1.8.6
+          bandit -r src -ll
+      - name: Dependency vulnerability audit
+        run: |
+          python -m pip install pip-audit==2.9.0
+          pip-audit -r requirements.txt
       - name: Run complete suite on PostgreSQL and Redis
-        run: python manage.py test tests --settings=config.settings -v 1
+        run: python manage.py test tests --settings=config.ci_settings -v 1
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan repository history for secrets
+        uses: gitleaks/gitleaks-action@v2.3.9

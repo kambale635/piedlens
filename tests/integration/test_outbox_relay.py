@@ -12,6 +12,9 @@ import redis
 from redis.exceptions import RedisError
 
 from contexts.crm.infrastructure.persistence.models import OutboxEventRecord
+from contexts.platform_connectors.infrastructure.adapters.django_message_content_cipher import (
+    DjangoMessageContentCipher,
+)
 from piedlens_platform.event_bus.outbox_relay_worker import OutboxRelayWorker
 from piedlens_platform.event_bus.redis_stream_publisher import RedisStreamEventPublisher
 
@@ -77,6 +80,35 @@ class OutboxRelayIntegrationTests(TransactionTestCase):
         self.assertIsNone(self.event.next_attempt_at)
         self.assertEqual(publisher.envelopes[0]["eventId"], str(self.event.event_id))
         self.assertEqual(publisher.envelopes[0]["payload"], self.event.payload)
+
+    def test_relay_keeps_message_text_encrypted_in_the_redis_envelope(self):
+        self.event.published_at = self.now
+        self.event.save(update_fields=["published_at"])
+        cipher = DjangoMessageContentCipher()
+        message_text = "outbox-message-plaintext-sentinel"
+        event = OutboxEventRecord.objects.create(
+            event_id=uuid4(),
+            event_type="MessageReceived",
+            occurred_at=self.now,
+            produced_by="platform-connectors",
+            payload={"text_content": cipher.encrypt(message_text)},
+        )
+        class Publisher:
+            def __init__(self):
+                self.envelopes = []
+
+            def publish(self, envelope):
+                self.envelopes.append(envelope)
+
+        publisher = Publisher()
+        worker = OutboxRelayWorker(OutboxEventRecord, publisher, 10, 2, 60)
+
+        self.assertEqual(worker.publish_batch(), 1)
+        event.refresh_from_db()
+        self.assertNotIn(message_text, str(event.payload))
+        published_text = publisher.envelopes[0]["payload"]["text_content"]
+        self.assertNotEqual(published_text, message_text)
+        self.assertEqual(cipher.decrypt(published_text), message_text)
 
     def test_redis_failure_schedules_bounded_retry_without_marking_published(self):
         class Publisher:

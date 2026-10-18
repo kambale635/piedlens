@@ -108,8 +108,20 @@ class FakeVerifier:
     def __init__(self, valid):
         self.valid = valid
 
-    def verify(self, platform_type, raw_body, signature):
+    def verify(self, platform_type, raw_body, signature, timestamp):
         return self.valid
+
+
+class FakeReplayCache:
+    def __init__(self):
+        self.claimed = set()
+
+    def claim(self, channel_code, replay_key, ttl_seconds):
+        key = (channel_code, replay_key)
+        if key in self.claimed:
+            return False
+        self.claimed.add(key)
+        return True
 
 
 class FakeChannelAvailability:
@@ -203,6 +215,8 @@ class PlatformConnectorUseCaseTests(unittest.TestCase):
             connections=FakeConnections([self.connection]),
             messages=FakeMessageRepository(),
             providers=_registry(verifier=FakeVerifier(False), mapper=mapper),
+            replay_cache=FakeReplayCache(),
+            replay_ttl_seconds=600,
             unit_of_work=FakeUnitOfWork(),
             outbox=FakeOutbox(),
         )
@@ -228,6 +242,8 @@ class PlatformConnectorUseCaseTests(unittest.TestCase):
             connections=FakeConnections([self.connection]),
             messages=repository,
             providers=_registry(verifier=FakeVerifier(True), mapper=FakeMapper([message])),
+            replay_cache=FakeReplayCache(),
+            replay_ttl_seconds=600,
             unit_of_work=FakeUnitOfWork(),
             outbox=outbox,
         )
@@ -337,6 +353,8 @@ class PlatformConnectorUseCaseTests(unittest.TestCase):
             connections=FakeConnections([connection]),
             messages=message_repository,
             providers=registry,
+            replay_cache=FakeReplayCache(),
+            replay_ttl_seconds=600,
             unit_of_work=FakeUnitOfWork(),
             outbox=message_outbox,
         )

@@ -2,7 +2,7 @@ import os
 import secrets
 from pathlib import Path
 
-from .security_settings import validate_production_configuration
+from .security_settings import environment_security_settings, validate_production_configuration
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -10,6 +10,7 @@ validate_production_configuration(os.environ)
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or secrets.token_urlsafe(50)
 DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+globals().update(environment_security_settings(os.environ))
 
 INSTALLED_APPS = [
     "django.contrib.auth",
@@ -24,8 +25,20 @@ INSTALLED_APPS = [
     "contexts.crm.apps.CRMConfig",
 ]
 
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 12},
+    },
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "middleware.cors_middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -37,6 +50,7 @@ MIDDLEWARE = [
     "middleware.permission_middleware.PermissionMiddleware",
     "middleware.rate_limit_middleware.RateLimitMiddleware",
     "middleware.audit_logging_middleware.AuditLoggingMiddleware",
+    "middleware.request_size_limit_middleware.RequestSizeLimitMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -92,6 +106,15 @@ IDENTITY_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("IDENTITY_ACCESS_TOKEN_TT
 IDENTITY_REFRESH_TOKEN_TTL_SECONDS = int(
     os.environ.get("IDENTITY_REFRESH_TOKEN_TTL_SECONDS", "2592000")
 )
+IDENTITY_LOGIN_BACKOFF_BASE_SECONDS = int(
+    os.environ.get("IDENTITY_LOGIN_BACKOFF_BASE_SECONDS", "2")
+)
+IDENTITY_LOGIN_BACKOFF_MAX_SECONDS = int(
+    os.environ.get("IDENTITY_LOGIN_BACKOFF_MAX_SECONDS", "900")
+)
+IDENTITY_LOGIN_BACKOFF_WINDOW_SECONDS = int(
+    os.environ.get("IDENTITY_LOGIN_BACKOFF_WINDOW_SECONDS", "3600")
+)
 ACCESS_CONTROL_PERMISSION_CACHE_TTL_SECONDS = int(
     os.environ.get("ACCESS_CONTROL_PERMISSION_CACHE_TTL_SECONDS", "15")
 )
@@ -115,6 +138,7 @@ PIEDLENS_PERMISSION_CHECKER = (
     "contexts.access_control.infrastructure.adapters.django_permission_checker."
     "DjangoAccessControlPermissionChecker"
 )
+PIEDLENS_AUDIT_SINK = "piedlens_platform.event_bus.audit_log.DjangoAuditLogSink"
 CRM_SEGMENT_CACHE_TTL_SECONDS = int(
     os.environ.get("CRM_SEGMENT_CACHE_TTL_SECONDS", "300")
 )
@@ -140,11 +164,40 @@ if os.environ.get("PLATFORM_TOKEN_ENCRYPTION_KEY"):
     PLATFORM_TOKEN_ENCRYPTION_KEYS.setdefault(
         "legacy", os.environ["PLATFORM_TOKEN_ENCRYPTION_KEY"]
     )
+BACKUP_DATA_ENCRYPTION_ACTIVE_VERSION = os.environ.get(
+    "BACKUP_DATA_ENCRYPTION_ACTIVE_VERSION", "v1"
+)
+BACKUP_DATA_ENCRYPTION_KEYS = {
+    name.removeprefix("BACKUP_DATA_ENCRYPTION_KEY_").lower(): value
+    for name, value in os.environ.items()
+    if name.startswith("BACKUP_DATA_ENCRYPTION_KEY_") and value
+}
+PLATFORM_MESSAGE_ENCRYPTION_ACTIVE_VERSION = os.environ.get(
+    "PLATFORM_MESSAGE_ENCRYPTION_ACTIVE_VERSION", "v1"
+)
+PLATFORM_MESSAGE_ENCRYPTION_KEYS = {
+    name.removeprefix("PLATFORM_MESSAGE_ENCRYPTION_KEY_").lower(): value
+    for name, value in os.environ.items()
+    if name.startswith("PLATFORM_MESSAGE_ENCRYPTION_KEY_") and value
+}
+CRM_MESSAGE_ENCRYPTION_ACTIVE_VERSION = os.environ.get(
+    "CRM_MESSAGE_ENCRYPTION_ACTIVE_VERSION", "v1"
+)
+CRM_MESSAGE_ENCRYPTION_KEYS = {
+    name.removeprefix("CRM_MESSAGE_ENCRYPTION_KEY_").lower(): value
+    for name, value in os.environ.items()
+    if name.startswith("CRM_MESSAGE_ENCRYPTION_KEY_") and value
+}
 PLATFORM_WEBHOOK_SECRETS = {
     "whatsapp": os.environ.get("WHATSAPP_WEBHOOK_SECRET", ""),
     "instagram": os.environ.get("INSTAGRAM_WEBHOOK_SECRET", ""),
     "facebook": os.environ.get("FACEBOOK_WEBHOOK_SECRET", ""),
 }
+PLATFORM_WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS = int(
+    os.environ.get("PLATFORM_WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS", "300")
+)
+if PLATFORM_WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS < 1:
+    raise RuntimeError("PLATFORM_WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS must be positive.")
 BACKUP_EXPORT_SIGNING_SECRET = os.environ.get("BACKUP_EXPORT_SIGNING_SECRET", "")
 BACKUP_EXPORT_BASE_URL = os.environ.get(
     "BACKUP_EXPORT_BASE_URL", "http://localhost:8000/api/v1/backups/objects"
@@ -169,7 +222,20 @@ BACKUP_S3_DELETE_BACKOFF_MAX_SECONDS = float(
 if os.environ.get("DJANGO_SECURE_COOKIES", "0") == "1":
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-SECURE_SSL_REDIRECT = os.environ.get("DJANGO_SECURE_SSL_REDIRECT", "0") == "1"
+DJANGO_MAX_REQUEST_BODY_BYTES = int(os.environ.get("DJANGO_MAX_REQUEST_BODY_BYTES", "10485760"))
+if DJANGO_MAX_REQUEST_BODY_BYTES < 1:
+    raise RuntimeError("DJANGO_MAX_REQUEST_BODY_BYTES must be positive.")
+DATA_UPLOAD_MAX_MEMORY_SIZE = DJANGO_MAX_REQUEST_BODY_BYTES
+FILE_UPLOAD_MAX_MEMORY_SIZE = min(DJANGO_MAX_REQUEST_BODY_BYTES, 2621440)
+CORS_ALLOWED_ORIGINS = tuple(
+    origin.strip()
+    for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+)
+if "*" in CORS_ALLOWED_ORIGINS or "null" in CORS_ALLOWED_ORIGINS:
+    raise RuntimeError("CORS_ALLOWED_ORIGINS must list exact non-null origins.")
+CORS_ALLOWED_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+CORS_ALLOWED_HEADERS = ("authorization", "content-type", "x-correlation-id", "x-merchant-id")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"

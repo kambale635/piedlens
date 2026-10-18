@@ -34,9 +34,14 @@ Déclenché par un job planifié (fréquence selon le plan d'abonnement du merch
 
 ### `HandleIncomingWebhookUseCase`
 Pour les plateformes supportant les webhooks temps réel (préférable à la synchronisation périodique quand disponible) :
-1. Valider la signature du webhook (sécurité — chaque plateforme a son mécanisme, ex: `X-Hub-Signature-256` pour Meta)
-2. Traduire le payload spécifique à la plateforme vers le modèle `Message` interne unifié (Anti-Corruption Layer, voir ci-dessous)
-3. Publier `MessageReceived [EVT]`
+1. Valider la signature sur le corps brut et l'horodatage `X-Webhook-Timestamp`; la tolérance vient de `PLATFORM_WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS`.
+2. Apres signature valide, réclamer atomiquement dans Redis une clé de rejeu dérivée du canal, de l'horodatage et du corps; un doublon est acquitté sans parsing ni effet.
+3. Traduire le payload spécifique à la plateforme vers le modèle `Message` interne unifié (Anti-Corruption Layer, voir ci-dessous).
+4. Publier `MessageReceived [EVT]`
+
+Le champ normalise `Message.textContent` est chiffre au repos dans le repository et l'Outbox. L'enveloppe Redis conserve aussi le ciphertext; seul Rules Engine le dechiffre juste avant evaluation. La cle versionnee vient de `PLATFORM_MESSAGE_ENCRYPTION_*`.
+
+Le format generique mock signe `timestamp + "." + corps_brut` en HMAC-SHA256 et utilise `X-Hub-Signature-256` avec `X-Webhook-Timestamp`. Chaque futur adaptateur reel devra respecter le format natif du fournisseur derriere `IWebhookSignatureVerifier`; aucun format Meta/Instagram reel n'est implemente ici.
 
 ## Anti-Corruption Layer (ACL) — concept DDD important ici
 

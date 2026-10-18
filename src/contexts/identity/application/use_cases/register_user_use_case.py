@@ -1,4 +1,3 @@
-import re
 from uuid import uuid4
 
 from shared_kernel.domain_exceptions import InvalidValueObjectException
@@ -33,7 +32,7 @@ class RegisterUserUseCase:
             phone = PhoneNumber(phone_number)
         except InvalidValueObjectException as error:
             raise InvalidPhoneFormat() from error
-        if len(password) < 12 or not re.search(r"[A-Za-z]", password) or not re.search(r"[0-9]", password):
+        if not self.password_hasher.validate(password):
             raise WeakPassword()
         if self.users.find_by_phone(phone.value) is not None:
             raise PhoneAlreadyRegistered()

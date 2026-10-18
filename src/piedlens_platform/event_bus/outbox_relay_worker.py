@@ -18,12 +18,14 @@ class OutboxRelayWorker:
 		batch_size: int,
 		backoff_base_seconds: float,
 		backoff_max_seconds: float,
+		payload_transformer=None,
 	) -> None:
 		self._outbox_model = outbox_model
 		self._publisher = publisher
 		self._batch_size = batch_size
 		self._backoff_base_seconds = backoff_base_seconds
 		self._backoff_max_seconds = backoff_max_seconds
+		self._payload_transformer = payload_transformer or (lambda event_type, payload: payload)
 
 	def publish_batch(self) -> int:
 		"""Publish one eligible batch; locked rows are skipped by competing relays."""
@@ -49,7 +51,7 @@ class OutboxRelayWorker:
 							"correlationId": (
 								str(event.correlation_id) if event.correlation_id else None
 							),
-							"payload": event.payload,
+							"payload": self._payload_transformer(event.event_type, event.payload),
 						}
 					)
 				except RedisError:

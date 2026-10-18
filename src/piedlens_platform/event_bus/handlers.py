@@ -49,10 +49,14 @@ def handle_message_received(envelope):
         ApplicationContainer.create_backup_snapshot().execute(connection_id)
         return
     if settings.CONSUMER_CONTEXT == "rules-engine":
+        from contexts.platform_connectors.infrastructure.adapters.django_message_content_cipher import (
+            DjangoMessageContentCipher,
+        )
+
         ApplicationContainer.evaluate_message().execute(
             merchant_id=merchant_id,
             message_id=_uuid(payload["message_id"]),
-            text_content=payload.get("text_content", ""),
+            text_content=DjangoMessageContentCipher().decrypt(payload.get("text_content", "")),
             has_media=bool(payload.get("has_media", False)),
             event_id=event_id,
             platform_connection_id=connection_id,

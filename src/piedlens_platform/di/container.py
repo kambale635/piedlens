@@ -119,9 +119,15 @@ from contexts.identity.application.use_cases.authenticate_user_use_case import A
 from contexts.identity.application.use_cases.change_subscription_plan_use_case import ChangeSubscriptionPlanUseCase
 from contexts.identity.application.use_cases.create_merchant_use_case import CreateMerchantUseCase
 from contexts.identity.application.use_cases.refresh_access_token_use_case import RefreshAccessTokenUseCase
+from contexts.identity.application.use_cases.logout_user_use_case import LogoutUserUseCase
+from contexts.identity.application.use_cases.revoke_all_sessions_use_case import RevokeAllSessionsUseCase
 from contexts.identity.application.use_cases.register_user_use_case import RegisterUserUseCase
 from contexts.identity.application.use_cases.purge_merchant_data_use_case import PurgeMerchantDataUseCase
-from contexts.identity.infrastructure.adapters.django_security_services import DjangoPasswordHasher, DjangoTokenService
+from contexts.identity.infrastructure.adapters.django_security_services import (
+    DjangoLoginBackoff,
+    DjangoPasswordHasher,
+    DjangoTokenService,
+)
 from contexts.identity.infrastructure.adapters.system_clock import SystemIdentityClock
 from contexts.identity.infrastructure.messaging.django_identity_outbox import DjangoIdentityOutbox
 from contexts.identity.infrastructure.persistence.django_identity_repositories import (
@@ -207,6 +213,9 @@ from contexts.platform_connectors.infrastructure.adapters.django_connection_usag
 )
 from contexts.platform_connectors.infrastructure.adapters.django_webhook_signature_verifier import (
     DjangoWebhookSignatureVerifier,
+)
+from contexts.platform_connectors.infrastructure.adapters.django_webhook_replay_cache import (
+    DjangoWebhookReplayCache,
 )
 from contexts.platform_connectors.infrastructure.adapters.mock_channel_capabilities import (
     MockChannelHealthChecker,
@@ -651,11 +660,24 @@ class ApplicationContainer:
 
     @staticmethod
     def authenticate_user() -> AuthenticateUserUseCase:
-        return AuthenticateUserUseCase(DjangoUserRepository(), DjangoPasswordHasher(), DjangoTokenService())
+        return AuthenticateUserUseCase(
+            DjangoUserRepository(),
+            DjangoPasswordHasher(),
+            DjangoTokenService(),
+            DjangoLoginBackoff(),
+        )
 
     @staticmethod
     def refresh_access_token() -> RefreshAccessTokenUseCase:
         return RefreshAccessTokenUseCase(DjangoTokenService(), DjangoUserRepository())
+
+    @staticmethod
+    def logout_user() -> LogoutUserUseCase:
+        return LogoutUserUseCase(DjangoTokenService())
+
+    @staticmethod
+    def revoke_all_sessions() -> RevokeAllSessionsUseCase:
+        return RevokeAllSessionsUseCase(DjangoTokenService())
 
     @staticmethod
     def create_merchant() -> CreateMerchantUseCase:
@@ -703,6 +725,8 @@ class ApplicationContainer:
             connections=DjangoPlatformConnectionRepository(),
             messages=DjangoMessageRepository(),
             providers=ApplicationContainer.channel_provider_registry(),
+            replay_cache=DjangoWebhookReplayCache(),
+            replay_ttl_seconds=2 * settings.PLATFORM_WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS,
             unit_of_work=DjangoPlatformConnectorsUnitOfWork(),
             outbox=DjangoPlatformConnectorsOutbox(),
         )

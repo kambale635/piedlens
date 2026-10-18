@@ -18,6 +18,9 @@ from shared_kernel.application_exceptions import ValidationException
 
 class MiddlewareChainTests(unittest.TestCase):
     def setUp(self):
+        audit_settings = override_settings(PIEDLENS_AUDIT_SINK=None)
+        audit_settings.enable()
+        self.addCleanup(audit_settings.disable)
         self.factory = RequestFactory()
         self.request = self.factory.get("/api/resource")
         self.request.correlation_id = "correlation-1"

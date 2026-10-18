@@ -39,6 +39,45 @@ Ce document guide toute nouvelle conversation ou reprise de session. Il complete
 - Prochaine action : ajouter les sessions persistantes Identity et adapter routes/tests selon ces contrats.
 - Aucun nouveau secret tiers n'est requis; tests avec tokens signes locaux uniquement.
 
+## 2026-10-18 — Etape 4, cycle d'authentification termine
+
+- Derniere sous-etape terminee : migration `identity.0005_authsessionrecord`, refresh rotatif avec detection/revocation de famille, logout, logout-all, access tokens lies a une session, validateurs Django, backoff progressif et port TOTP seul.
+- Prochaine action : horodatage signe, tolerance configurable et cache Redis anti-rejeu pour les webhooks.
+- Tests passes : `tests.integration.identity.test_session_lifecycle` 3/3; `tests.unit.identity.test_auth_security` 2/2; `tests.unit.identity.test_identity_use_cases` + `tests.integration.identity.test_identity_api` 8/8, tous avec `--settings=config.test_settings`.
+- Piege migration : les refresh tokens pre-`identity.0005` sont stateless et seront refuses; prevoir reconnexion utilisateur au deploiement. `logout-all` invalide aussi les access tokens car chaque requete verifie l'etat de session.
+- Aucun TOTP effectif, SMS, fournisseur externe ni secret live n'a ete ajoute.
+
+## 2026-10-18 — Etape 4, webhooks securises
+
+- Derniere sous-etape terminee : signature HMAC timestamp-aware, comparaison constante, anti-rejeu par `cache.add` Redis apres signature valide et avant parsing; horodatage ASCII canonique uniquement.
+- Prochaine action : test exhaustif des politiques de routes/tenant, puis en-tetes securite, limites requete, audit append-only et capture des logs.
+- Test passe : `./venv/bin/python manage.py test tests.unit.platform_connectors tests.integration.platform_connectors.test_webhook_replay_cache --settings=config.test_settings -v 1` (20/20).
+- Piege : le format timestamp-plus-corps est un contrat mock generique et n'est pas compatible par declaration avec Meta; implementer le format natif uniquement dans un adaptateur reel apres fourniture explicite des credentials. Le test de cache cible Redis local, pas Redis Compose du projet.
+
+## 2026-10-18 — Etape 4, routes/HTTP/audit
+
+- Derniere sous-etape terminee : politique explicite verifiee sur tout le resolver; test HTTP de scope A/B sur toutes les routes permissionnees plus lecture/ecriture CRM; HSTS/cookies/HTTPS, headers browser, CORS exact, limites corps et audit append-only ajoutes.
+- Prochaine action : traiter le chiffrement applicatif des messages/exports (ou documenter une alternative), puis CI bandit/pip-audit/secret scan et versions figees.
+- Validation combinee : `./venv/bin/python manage.py test tests.integration.test_audit_log_security tests.unit.middleware.test_http_security tests.integration.test_tenant_route_isolation tests.architecture.test_route_security_policy --settings=config.test_settings -v 1` (12 trouves, 11 passes, 1 trigger PostgreSQL saute sous SQLite).
+- Le trigger PostgreSQL est migre uniquement sur PostgreSQL; le test SQL conditionnel n'a pas pu etre prouve ici. Le test ORM append-only passe sous SQLite.
+- CORS n'ajoute jamais `Access-Control-Allow-Credentials`; ajouter uniquement des origines exactes via `CORS_ALLOWED_ORIGINS`. Taille max vient de `DJANGO_MAX_REQUEST_BODY_BYTES`.
+
+## 2026-10-18 — Etape 4, chiffrement applicatif des contenus
+
+- Derniere sous-etape terminee : AES-256-GCM versionne pour messages platform, copie Outbox/Redis, objets Backup PostgreSQL/S3 et templates CRM; registre 28 actualise avec noms de keyrings seulement.
+- Test passe : `./venv/bin/python manage.py test tests.integration.backup.test_backup_exports tests.integration.crm.test_campaign_content_encryption tests.integration.platform_connectors.test_platform_persistence tests.integration.test_outbox_relay tests.unit.test_encrypted_message_event_handler tests.unit.backup.test_backup_payload_cipher --settings=config.test_settings -v 1` (20 trouves, 19 passes, 1 PostgreSQL skip).
+- Commandes de rotation : `rotate_platform_tokens`, `rotate_platform_message_content`, `rotate_backup_payloads`, `rotate_campaign_content`; elles re-chiffrent par ligne/objet. Ne retirer aucune ancienne cle avant rotation terminee et verifiee.
+- Les cles deterministes de `config.test_settings.py` sont exclusivement pour tests, jamais pour production.
+
+## 2026-10-18 — Etape 4, scans CI et dependances
+
+- Derniere sous-etape terminee : versions runtime/transitives epinglees; workflow Bandit/pip-audit/Gitleaks; `config.ci_settings` garde PostgreSQL/Redis et injecte des keyrings non-production.
+- Prochaine action : lancer une seule suite complete locale, puis finaliser le commit de l'etape 4 et le rapport de reprise.
+- Controles passes : `manage.py check --settings=config.ci_settings`, round-trip des quatre keyrings CI, `pip check`, `git diff --check`.
+- Les scanners sont absents du venv et n'ont pas ete installes localement; ils sont installes/executés dans le job CI. Ne pas installer localement sans demande.
+- PostgreSQL Compose du projet reste inaccessible faute des variables requises; SQLite ne prouve ni les locks ni le trigger append-only. Redis localhost repond pour les tests Streams/cache.
+- Limites securite : workflow CI distant pas encore observe; PostgreSQL natif/trigger non prouves localement; reconnexion requise pour anciens tokens Identity stateless; TOTP seulement un port; adaptateurs/credentials fournisseurs live absents.
+
 ## 1. Retrouver le bon etat
 
 1. Confirmer le dossier racine du workspace et identifier les fichiers reellement presents. Ne pas supposer que Git, Docker, PostgreSQL ou des services locaux sont disponibles.

@@ -1,9 +1,13 @@
+import json
+import base64
+from io import StringIO
 from urllib.parse import urlparse, parse_qs
 
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 
 from contexts.backup.infrastructure.persistence.django_object_storage import DjangoObjectStorage
-from contexts.backup.infrastructure.persistence.models import S3ObjectDeletionRecord
+from contexts.backup.infrastructure.persistence.models import BackupObjectRecord, S3ObjectDeletionRecord
 from contexts.backup.infrastructure.persistence.s3_object_deletion_worker import (
     S3ObjectDeletionWorker,
 )
@@ -11,6 +15,40 @@ from contexts.backup.infrastructure.persistence.s3_object_storage import S3Objec
 
 
 class BackupExportIntegrationTests(TestCase):
+    def test_backup_payload_rotation_reencrypts_objects_without_changing_references(self):
+        first_key = base64.urlsafe_b64encode(b"a" * 32).decode()
+        second_key = base64.urlsafe_b64encode(b"b" * 32).decode()
+        with override_settings(
+            BACKUP_DATA_ENCRYPTION_ACTIVE_VERSION="v1",
+            BACKUP_DATA_ENCRYPTION_KEYS={"v1": first_key},
+        ):
+            storage = DjangoObjectStorage()
+            reference = storage.store({"content": "snapshot data"})
+        output = StringIO()
+
+        with override_settings(
+            BACKUP_DATA_ENCRYPTION_ACTIVE_VERSION="v2",
+            BACKUP_DATA_ENCRYPTION_KEYS={"v1": first_key, "v2": second_key},
+        ):
+            call_command("rotate_backup_payloads", stdout=output)
+            stored = BackupObjectRecord.objects.get(id=reference)
+            self.assertEqual(DjangoObjectStorage().retrieve(reference), {"content": "snapshot data"})
+
+        self.assertEqual(stored.payload["_piedlens_encrypted_backup"], "v2")
+        self.assertEqual(output.getvalue(), "Rotated 1 backup object(s).\n")
+
+    def test_database_object_storage_encrypts_payload_at_rest(self):
+        from contexts.backup.infrastructure.persistence.models import BackupObjectRecord
+
+        payload = {"messages": [{"text": "private snapshot body"}]}
+        storage = DjangoObjectStorage()
+        reference = storage.store(payload)
+        stored = BackupObjectRecord.objects.get(id=reference).payload
+
+        self.assertNotIn("private snapshot body", json.dumps(stored))
+        self.assertIn("_piedlens_encrypted_backup", stored)
+        self.assertEqual(storage.retrieve(reference), payload)
+
     @override_settings(
         BACKUP_EXPORT_SIGNING_SECRET="integration-signing-secret",
         BACKUP_EXPORT_BASE_URL="http://testserver/api/v1/backups/objects",
@@ -96,6 +134,7 @@ class BackupExportIntegrationTests(TestCase):
 
         self.assertEqual(client.put_call["Bucket"], "backup-test")
         self.assertEqual(client.put_call["ServerSideEncryption"], "AES256")
+        self.assertIn("_piedlens_encrypted_backup", json.loads(client.put_call["Body"]))
         self.assertEqual(storage.retrieve(reference), {"messages": []})
         self.assertEqual(
             storage.generate_signed_url(reference, 15),

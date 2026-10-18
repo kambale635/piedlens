@@ -37,6 +37,7 @@ def _webhook(request, platform_type):
         platform_type=platform_type,
         raw_body=request.body,
         signature=request.headers.get("X-Hub-Signature-256", ""),
+        timestamp=request.headers.get("X-Webhook-Timestamp", ""),
     )
     return JsonResponse({"accepted": True, "messageCount": result["accepted_count"]})
 

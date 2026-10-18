@@ -112,9 +112,10 @@
 - **Événements publiés** : `MessageReceived` (un par nouveau message, via Outbox — voir `14-event-driven-architecture.md`)
 
 ### `HandleIncomingWebhookUseCase`
-- **Entrée** : payload brut spécifique plateforme + en-têtes de signature
+- **Entrée** : payload brut spécifique plateforme + `X-Hub-Signature-256` + `X-Webhook-Timestamp`
 - **Sortie** : `200 OK` (accusé de réception obligatoire rapide, traitement métier différé si lourd)
-- **Préconditions** : signature valide (`X-Hub-Signature-256` ou équivalent selon plateforme)
+- **Préconditions** : signature valide en temps constant; horodatage dans la tolérance configurée; empreinte réclamée dans le cache Redis anti-rejeu avant parsing
+- **Postconditions** : un rejeu valide est acquitté avec zéro message accepte et ne produit ni parsing ni evenement.
 - **Erreurs** : `401 INVALID_WEBHOOK_SIGNATURE`
 - **Événements publiés** : `MessageReceived`
 

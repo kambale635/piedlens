@@ -54,7 +54,9 @@ class IdentityUseCaseTests(unittest.TestCase):
             self.use_case.execute("+14155550124", "short1")
 
     def test_missing_user_and_wrong_password_share_error(self):
-        authenticate = AuthenticateUserUseCase(self.users, FakeHasher(), FakeTokens())
+        authenticate = AuthenticateUserUseCase(
+            self.users, FakeHasher(), FakeTokens(), FakeLoginBackoff()
+        )
         with self.assertRaises(InvalidCredentials) as missing:
             authenticate.execute("+14155550124", "wrong-password-123")
         self.use_case.execute("+14155550123", "correct-password-123")
@@ -124,6 +126,20 @@ class FakeHasher:
 
     def verify(self, password, password_hash):
         return password_hash == f"encoded:{password}"
+
+    def validate(self, password):
+        return len(password) >= 12 and not password.isnumeric()
+
+
+class FakeLoginBackoff:
+    def is_blocked(self, attempt_key):
+        return False
+
+    def record_failure(self, attempt_key):
+        return None
+
+    def clear(self, attempt_key):
+        return None
 
 
 class FakeTokens:

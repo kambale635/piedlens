@@ -132,6 +132,8 @@ Chaque contexte producteur expose la commande Django `run_outbox_relay`. Son wor
 
 Les workers consommateurs lisent leur flux avec `XREADGROUP`. Le traitement métier et l'insertion de `(event_id, consumer_name)` dans `processed_events` ont lieu dans la même transaction PostgreSQL. `XACK` ne se produit qu'après commit. Les messages pendants abandonnés sont repris après un délai configurable avec `XAUTOCLAIM`; un crash après commit mais avant `XACK` provoque une relecture sans second effet métier grâce à INV-TR-03. Après cinq échecs de traitement, le worker publie l'enveloppe et les métadonnées d'erreur non sensibles dans `<consumer-context>.dlq`, puis acquitte l'entrée d'origine seulement après confirmation de l'écriture DLQ. Les erreurs et payloads de messages ne sont jamais écrits dans les logs.
 
+Le champ `MessageReceived.text_content` reste chiffre dans l'Outbox et Redis Streams/AOF. Seul le handler Rules Engine le dechiffre en memoire, juste avant l'evaluation; CRM/Backup n'ont pas besoin du texte dans leur handler. `PLATFORM_MESSAGE_ENCRYPTION_*` fournit le keyring; garder les anciennes versions pendant `rotate_platform_message_content`.
+
 La topologie obligatoire est :
 
 | Flux producteur | Consumer group(s) |

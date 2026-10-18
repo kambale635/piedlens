@@ -12,10 +12,14 @@ from ...domain.entities.bulk_message_campaign import (
 )
 from ...application.ports import IBulkMessageCampaignRepository
 from ..persistence.models import BulkMessageCampaignRecord, BulkMessageRecipientRecord
+from ..adapters.django_campaign_content_cipher import DjangoCampaignContentCipher
 
 
 class DjangoBulkMessageCampaignRepository(IBulkMessageCampaignRepository):
     """Persist campaign metadata and recipient statuses in CRM-owned tables."""
+
+    def __init__(self, content_cipher=None) -> None:
+        self._content_cipher = content_cipher or DjangoCampaignContentCipher()
 
     def create(self, campaign: BulkMessageCampaign) -> None:
         """Insert campaign and its immutable audience journals in the caller transaction."""
@@ -24,7 +28,7 @@ class DjangoBulkMessageCampaignRepository(IBulkMessageCampaignRepository):
             merchant_id=campaign.merchant_id,
             segment_id=campaign.segment_id,
             channel=campaign.channel,
-            template=campaign.template,
+            template=self._content_cipher.encrypt(campaign.template),
             status=campaign.status.value,
             recipient_count=len(campaign.recipient_contact_ids),
             created_at=campaign.created_at,
@@ -50,12 +54,16 @@ class DjangoBulkMessageCampaignRepository(IBulkMessageCampaignRepository):
             .order_by("contact_id")
             .values_list("contact_id", flat=True)
         )
+        template = self._content_cipher.decrypt(record.template)
+        if self._content_cipher.key_version(record.template) is None:
+            record.template = self._content_cipher.encrypt(template)
+            record.save(update_fields=["template"])
         return BulkMessageCampaign(
             id=record.id,
             merchant_id=record.merchant_id,
             segment_id=record.segment_id,
             channel=record.channel,
-            template=record.template,
+            template=template,
             recipient_contact_ids=recipient_ids,
             created_at=record.created_at,
             status=BulkMessageCampaignStatus(record.status),

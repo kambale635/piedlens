@@ -28,6 +28,21 @@ class MerchantRecord(models.Model):
         db_table = "identity_merchants"
 
 
+class AuthSessionRecord(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user_id = models.UUIDField(db_index=True)
+    family_id = models.UUIDField(db_index=True)
+    refresh_token_hash = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField()
+    expires_at = models.DateTimeField(db_index=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    replaced_by_session_id = models.UUIDField(null=True, blank=True)
+
+    class Meta:
+        db_table = "identity_auth_sessions"
+        indexes = [models.Index(fields=["user_id", "revoked_at"])]
+
+
 class ProcessedEventRecord(models.Model):
     event_id = models.UUIDField()
     consumer_name = models.CharField(max_length=160)

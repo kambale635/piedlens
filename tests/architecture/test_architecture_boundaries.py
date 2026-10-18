@@ -2,6 +2,8 @@ import ast
 import unittest
 from pathlib import Path
 
+from django.apps import apps
+
 
 SOURCE_ROOT = Path(__file__).resolve().parents[2] / "src"
 CONTEXTS_ROOT = SOURCE_ROOT / "contexts"
@@ -83,4 +85,36 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     target_parts = imported.split(".")
                     if len(target_parts) > 1 and target_parts[1] != context_root.name:
                         violations.append(f"{path}: {imported}")
+        self.assertEqual(violations, [])
+
+    def test_context_tables_use_their_bounded_context_prefix(self):
+        violations = []
+        for context_root in _context_roots():
+            context_label = context_root.name
+            for model in apps.get_app_config(context_label).get_models():
+                expected_prefix = f"{context_label}_"
+                if not model._meta.db_table.startswith(expected_prefix):
+                    violations.append(
+                        f"{context_label}.{model.__name__}: {model._meta.db_table} "
+                        f"does not start with {expected_prefix}"
+                    )
+        self.assertEqual(violations, [])
+
+    def test_context_models_have_no_cross_context_orm_relations(self):
+        context_labels = {path.name for path in _context_roots()}
+        violations = []
+        for context_label in sorted(context_labels):
+            for model in apps.get_app_config(context_label).get_models():
+                for field in model._meta.get_fields():
+                    if not getattr(field, "is_relation", False):
+                        continue
+                    if getattr(field, "auto_created", False):
+                        continue
+                    remote_model = getattr(getattr(field, "remote_field", None), "model", None)
+                    target_context = getattr(getattr(remote_model, "_meta", None), "app_label", None)
+                    if target_context != context_label:
+                        violations.append(
+                            f"{context_label}.{model.__name__}.{field.name} -> "
+                            f"{target_context}.{getattr(remote_model, '__name__', remote_model)}"
+                        )
         self.assertEqual(violations, [])

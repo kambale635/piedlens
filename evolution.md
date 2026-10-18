@@ -3,6 +3,17 @@
 Ce fichier conserve les decisions, documents consultes, fichiers crees ou modifies et prochaines etapes afin de faciliter la reprise du projet.
 Mettre a jour ce journal a chaque etape importante.
 
+## 2026-10-18 - Orientation SaaS et durcissement PostgreSQL
+
+- Reprise coherence (etape 1) : les changements interrompus ont ete resumes en cinq lignes dans l'echange, puis commits separes pour port dev/modification devise CRM (`0d44fbd`), enrichissement `MessageEvaluated` (`1f7f59c`), gateway mock/fail-closed (`2bca62d`) et port CRM Identity (`46077bf`). Worktree initialement sale: apres commits, clone temporaire `/tmp/piedlens-clone.LGKSHa/repo` autonome et propre, suite complete 147/147.
+- Orientation SaaS : docs 13/14/16 passent de l'isolation par schema natif a une decision reversible de base PostgreSQL unique, schema `public`, tables prefixees par app. La CI exige des tests PostgreSQL + Redis reels.
+- PostgreSQL Compose demarre depuis l'image deja presente; aucun paquet ni image Django n'a ete installe/construit. Suite complete `manage.py test tests --settings=config.settings` contre PostgreSQL Compose et Redis local : 148/148.
+- Ecarts reveles exclusivement par PostgreSQL : deux appels de tests a `select_for_update()` etaient hors transaction (CRM anomaly, Order Detection reminder); les tests ont ete corriges pour rester dans leur UnitOfWork. Aucun defaut de donnees/migration restant.
+- Relay concurrency : test avec deux workers et ligne tenue/verrouillee; le second saute la ligne via `SKIP LOCKED`, Redis ne contient qu'une entree. Test PostgreSQL/Redis passe.
+- Tables : `platform_connections` et `platform_messages` etaient les deux tables de contexte sans prefixe; migration `0004_context_table_prefixes` les renomme sans perte. Test architecture impose prefixe sur chaque model et interdit toute relation ORM de contexte, ainsi que les imports directs entre contexts. Architecture 6/6; migrations `--check` sans changement.
+- CI : `.github/workflows/tests.yml` ajoute PostgreSQL 16 + Redis 7 et execute l'ensemble avec `config.settings`.
+- A la fin de cette etape, la suite complete PostgreSQL+Redis est verte 148/148.
+
 ## 2026-10-18 - Reprise apres interruption
 
 - Etat initial : branche `main` a `9d89cef` (Outbox relay et Redis Streams deja committes); changements non committes deja presents concernant suppression merchant, S3, Compose et des adaptations connexes. Aucun changement existant n'a ete annule ni reinstalle.

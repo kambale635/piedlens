@@ -65,7 +65,7 @@
 - **INV-TR-01** : Aucun agrégat modifié en dehors de sa propre transaction — jamais deux Aggregate Roots modifiés dans la même opération. Communication inter-agrégats exclusivement par événements.
 - **INV-TR-02** : Toute émission d'événement de domaine passe par la table `outbox_events` du contexte producteur, dans la même transaction que la modification de l'agrégat (voir `14-event-driven-architecture.md`).
 - **INV-TR-03** : Tout consommateur d'événement est idempotent — vérifie `processed_events` avant traitement, sans exception.
-- **INV-TR-04** : Aucune requête ORM ne joint directement deux schémas de contextes différents, même si techniquement possible dans une base PostgreSQL unique.
+- **INV-TR-04** : Les tables résident dans le schéma PostgreSQL `public` et leur nom commence par le préfixe de leur app Django (`<app_label>_`). Aucun modèle ne déclare de `ForeignKey`, `OneToOneField` ou `ManyToManyField` vers un autre bounded context; aucune jointure ORM ou import direct ne traverse ces frontières. Les échanges passent par des ports exposés ou des événements. Le test d'architecture vérifie ces règles. Le routage vers des schémas PostgreSQL natifs par contexte est reporté par décision réversible dans `docs/13-technology-decision-adr.md`.
 - **INV-TR-05** : Tout `Money` circule toujours comme Value Object `{ amount, currency }`, jamais comme nombre nu, dans quelque contexte que ce soit.
 
 ## 8. Règles de limites par plan (référence unique, ne pas dupliquer ailleurs avec des valeurs différentes)

@@ -120,9 +120,9 @@ Dans ce projet, les Use Cases dépendent de ports `IOrderDetectionUnitOfWork` et
 
 La transaction englobe toutes les écritures SQL concernées : agrégat, outbox et marqueur idempotent. Une exception avant la sortie du bloc annule toutes ces écritures. Le consumer verrouille aussi une ligne `CandidateOrderCreationLockRecord` via `select_for_update()` et une contrainte unique sur `Order.source_candidate_id` protège les republications.
 
-La migration actuelle crée des tables préfixées `order_detection_*` dans le schéma PostgreSQL par défaut. L'ADR demande un schéma natif par bounded context; cette isolation de schéma n'est pas encore configurée et devra être ajoutée avec le routage/migrations PostgreSQL avant de revendiquer cette exigence comme satisfaite. Elle est indépendante de l'atomicité, qui reste assurée tant que les écritures restent sur la même base/connexion.
+La décision actuelle est une base PostgreSQL avec les tables de chaque bounded context préfixées `<app_label>_` dans le schéma `public`; le schéma natif par contexte est reporté par ADR-13. Les écritures d'agrégat, marqueur et Outbox restent atomiques sur la même connexion PostgreSQL. Les tests d'architecture imposent les préfixes, interdisent les relations ORM inter-contextes et les imports directs entre contexts.
 
-Les tests d'intégration avec SQLite vérifient commit, rollback et idempotence, mais SQLite n'applique pas réellement `SELECT FOR UPDATE`. Un contrôle de concurrence PostgreSQL en CI reste obligatoire avant production.
+Les tests d'intégration PostgreSQL vérifient commit, rollback, `SELECT FOR UPDATE`, `SKIP LOCKED` et idempotence. SQLite est réservé aux tests unitaires ciblés et ne constitue pas une preuve de concurrence.
 
 ## Transport de production : Redis Streams
 

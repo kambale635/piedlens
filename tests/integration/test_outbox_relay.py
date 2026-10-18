@@ -1,7 +1,11 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from threading import Event
+import unittest
 from unittest.mock import patch
 from uuid import uuid4
 
+from django.db import close_old_connections, connection
 from django.test import TransactionTestCase
 from django.conf import settings
 import redis
@@ -89,3 +93,48 @@ class OutboxRelayIntegrationTests(TransactionTestCase):
         self.assertIsNone(self.event.published_at)
         self.assertEqual(self.event.attempts, 1)
         self.assertEqual((self.event.next_attempt_at - self.now).total_seconds(), 2)
+
+    @unittest.skipUnless(connection.vendor == "postgresql", "requires PostgreSQL row locks")
+    def test_two_relays_publish_a_locked_outbox_event_only_once(self):
+        publisher_started = Event()
+        allow_publish = Event()
+        redis_publisher = RedisStreamEventPublisher(self.redis_client, self.stream)
+
+        class BlockingPublisher:
+            def publish(self, envelope):
+                publisher_started.set()
+                if not allow_publish.wait(timeout=10):
+                    raise TimeoutError("test did not release the first relay")
+                redis_publisher.publish(envelope)
+
+        first_worker = OutboxRelayWorker(
+            OutboxEventRecord, BlockingPublisher(), 10, 2, 60
+        )
+        second_worker = OutboxRelayWorker(
+            OutboxEventRecord,
+            RedisStreamEventPublisher(self.redis_client, self.stream),
+            10,
+            2,
+            60,
+        )
+
+        def publish_with_thread_connection_cleanup(worker):
+            close_old_connections()
+            try:
+                return worker.publish_batch()
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            first_result = executor.submit(publish_with_thread_connection_cleanup, first_worker)
+            self.assertTrue(publisher_started.wait(timeout=10))
+            second_result = executor.submit(publish_with_thread_connection_cleanup, second_worker)
+            try:
+                self.assertEqual(second_result.result(timeout=10), 0)
+            finally:
+                allow_publish.set()
+            self.assertEqual(first_result.result(timeout=10), 1)
+
+        self.assertEqual(len(self.redis_client.xrange(self.stream)), 1)
+        self.event.refresh_from_db()
+        self.assertIsNotNone(self.event.published_at)

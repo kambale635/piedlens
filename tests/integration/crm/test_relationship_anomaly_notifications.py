@@ -197,10 +197,10 @@ class RelationshipAnomalyNotificationIntegrationTests(TransactionTestCase):
         self.assertEqual(RelationshipAnomalyNotificationRecord.objects.count(), 1)
         self.assertEqual(OutboxEventRecord.objects.count(), 1)
 
-        contact = contacts.find_for_update_by_id(contact.id)
-        next_purchase_id = uuid4()
-        contact.record_paid_order(next_purchase_id, Money("10", "XOF"), clock.now)
         with self.unit_of_work:
+            contact = contacts.find_for_update_by_id(contact.id)
+            next_purchase_id = uuid4()
+            contact.record_paid_order(next_purchase_id, Money("10", "XOF"), clock.now)
             contacts.save(contact)
         clock.now = datetime(2026, 10, 20, tzinfo=timezone.utc)
 

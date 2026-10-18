@@ -16,7 +16,7 @@ class PlatformConnectionRecord(models.Model):
     last_synced_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        db_table = "platform_connections"
+        db_table = "platform_connectors_connections"
         constraints = [
             models.UniqueConstraint(
                 fields=["merchant_id", "platform_type", "external_account_id"],
@@ -38,7 +38,7 @@ class MessageRecord(models.Model):
     received_at = models.DateTimeField()
 
     class Meta:
-        db_table = "platform_messages"
+        db_table = "platform_connectors_messages"
         constraints = [
             models.UniqueConstraint(
                 fields=["platform_connection_id", "external_message_id"],

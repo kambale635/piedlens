@@ -442,11 +442,12 @@ class DjangoOrderDetectionAcidTests(TransactionTestCase):
             DjangoReminderRepository().save(reminder)
 
         now = datetime.now(timezone.utc)
-        claimed = DjangoReminderRepository().claim_due(
-            now=now,
-            lease_until=now + timedelta(minutes=5),
-            limit=10,
-        )
+        with self.unit_of_work:
+            claimed = DjangoReminderRepository().claim_due(
+                now=now,
+                lease_until=now + timedelta(minutes=5),
+                limit=10,
+            )
 
         self.assertEqual([item.id for item in claimed], [reminder.id])
         self.assertNotEqual(claimed[0].lease_token, reminder.lease_token)

@@ -148,7 +148,7 @@ Les groupes ne traitent que les types d'événements auxquels ils sont abonnés;
 `MerchantDataDeleted` est diffusé par l'Outbox Backup. Chaque contexte purge uniquement ses données locales, de façon reprenable et idempotente, puis émet `MerchantDataPurged { context, merchantId }` via sa propre Outbox :
 
 - `order-detection` : `Orders`, `Reminders`, `DetectionCandidates` et redirections locales `ContactReferenceRedirect`;
-- `crm` : `Contacts`, segments, historique d'achats, notifications et logs d'envoi;
+- `crm` : `Contacts` (avec historique d'achats), segments, notifications, campagnes et journaux de destinataires;
 - `platform-connectors` : connexions (destruction irréversible des tokens) et messages stockés;
 - `rules-engine` : seuls les `RuleSets` de scope merchant, jamais les scopes pays/global;
 - `access-control` : `RoleAssignments` scopés au merchant; les entrées d'audit sont conservées avec identifiants seulement et sans contenu de message;

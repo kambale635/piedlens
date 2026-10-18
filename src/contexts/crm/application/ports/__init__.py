@@ -32,6 +32,12 @@ class ICRMOutbox(Protocol):
         """Append one event to the active CRM database transaction."""
 
 
+class ICRMMerchantPurger(Protocol):
+    """Local persistence port for resumable merchant deletion (INV-CRM-09)."""
+
+    def purge_merchant_data(self, event_id: UUID, merchant_id: UUID) -> None: ...
+
+
 class IRelationshipAnomalyConfiguration(Protocol):
     """Resolve configured anomaly thresholds for one merchant (INV-CRM-05)."""
 

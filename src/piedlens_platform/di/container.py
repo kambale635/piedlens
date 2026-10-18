@@ -80,6 +80,7 @@ from contexts.crm.application.use_cases.consume_contact_merged_use_case import (
     ConsumeContactMergedUseCase,
 )
 from contexts.crm.application.use_cases.merge_contacts_use_case import MergeContactsUseCase
+from contexts.crm.application.use_cases.purge_merchant_data_use_case import PurgeMerchantDataUseCase as PurgeCRMMerchantDataUseCase
 from contexts.crm.application.use_cases.send_bulk_message_use_case import SendBulkMessageUseCase
 from contexts.crm.application.use_cases.process_bulk_message_campaign_use_case import (
     ProcessBulkMessageCampaignUseCase,
@@ -101,6 +102,9 @@ from contexts.crm.infrastructure.adapters.redis_segment_membership_cache import 
 from contexts.crm.infrastructure.messaging.django_crm_outbox import DjangoCRMOutbox
 from contexts.crm.infrastructure.persistence.django_processed_message_repository import (
     DjangoProcessedMessageRepository,
+)
+from contexts.crm.infrastructure.persistence.django_merchant_data_purger import (
+    DjangoCRMMerchantPurger,
 )
 from contexts.crm.infrastructure.adapters.django_relationship_anomaly_configuration import (
     DjangoRelationshipAnomalyConfiguration,
@@ -487,6 +491,16 @@ class ApplicationContainer:
             contact_repository=DjangoContactRepository(
                 segment_membership_cache=ApplicationContainer._crm_segment_cache()
             ),
+            unit_of_work=DjangoCRMUnitOfWork(),
+            outbox=DjangoCRMOutbox(),
+        )
+
+    @staticmethod
+    def purge_crm_merchant_data() -> PurgeCRMMerchantDataUseCase:
+        """Wire CRM-local deletion, processed-event tracking and completion Outbox (INV-CRM-09)."""
+        return PurgeCRMMerchantDataUseCase(
+            purger=DjangoCRMMerchantPurger(),
+            processed_events=DjangoProcessedMessageRepository(),
             unit_of_work=DjangoCRMUnitOfWork(),
             outbox=DjangoCRMOutbox(),
         )

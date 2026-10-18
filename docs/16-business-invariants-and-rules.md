@@ -108,5 +108,5 @@
 - **INV-PC-05** : la purge Platform Connectors détruit les tokens de connexion et supprime connexions et messages locaux du merchant; une reprise ne peut rétablir ni republier de secret supprimé.
 - **INV-RE-05** : la purge Rules Engine supprime uniquement les `RuleSets` de scope merchant; les configurations globales et pays restent intactes.
 - **INV-OD-08** : la purge Order Detection supprime les `Orders`, `Reminders`, `DetectionCandidates` et redirections `ContactReferenceRedirect` locaux du merchant, sans modifier de données CRM ou d'un autre contexte.
-- **INV-CRM-09** : la purge CRM supprime les `Contacts`, segments, historique d'achats, notifications et logs d'envoi locaux du merchant.
+- **INV-CRM-09** : la purge CRM supprime les `Contacts` (historique d'achats inclus), segments, notifications, campagnes et journaux de destinataires locaux du merchant.
 - **INV-TR-06** : chaque purge respecte INV-TR-01 : au plus un Aggregate Root est modifié par transaction. Un marqueur de traitement local rend la cascade reprenable; l'événement de confirmation est Outbox-transactionnel et émis une seule fois par contexte.

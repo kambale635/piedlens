@@ -100,6 +100,22 @@ class ProcessedMessageRecord(models.Model):
         ]
 
 
+class MerchantDeletionProgressRecord(models.Model):
+    event_id = models.UUIDField()
+    merchant_id = models.UUIDField()
+    aggregate_type = models.CharField(max_length=40)
+    aggregate_id = models.UUIDField()
+
+    class Meta:
+        db_table = "crm_deletion_progress"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["event_id", "aggregate_type", "aggregate_id"],
+                name="uniq_crm_deletion_progress_item",
+            )
+        ]
+
+
 class OutboxEventRecord(models.Model):
     """Durable CRM event committed atomically with its business write (INV-TR-02)."""
 

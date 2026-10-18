@@ -20,6 +20,8 @@ Mettre a jour ce journal a chaque etape importante.
 - Order Detection — purge merchant terminee : Orders, Reminders, DetectionCandidates et redirections locales purges par enregistrement, transactions et checkpoints separes; marqueur idempotent et Outbox final (INV-OD-08, INV-BK-06, INV-TR-01/03). La documentation INV-OD-08 est alignee sur les redirections locales.
 - Correction de wiring decouverte : les repositories Identity/Access Control et Rules Engine/Order Detection partagent des noms de classe; le composition root alias maintenant les deux implementations afin que les marqueurs restent dans leur contexte proprietaire.
 - Validation Order Detection : unitaires 44/44, integration Django 14/14, `manage.py check` sans erreur et `makemigrations order_detection --check --dry-run` sans changement. Prochaine etape : purge CRM.
+- CRM — purge merchant terminee : contacts et historique, segments, notifications d'anomalie, campagnes et journaux destinataires supprimes en transactions locales distinctes avec checkpoints; marqueur idempotent et `MerchantDataPurged` via Outbox (INV-CRM-09, INV-BK-06, INV-TR-01/03). Les documents 14/16 enumerent maintenant les campagnes et journaux.
+- Validation CRM : tests unitaires/integration 63/63; `makemigrations crm --check --dry-run` sans changement; diagnostics sans erreur. Prochaine etape : brancher les six handlers dans la topologie Redis/Compose, puis verifier l'adaptateur S3 et le deploiement.
 
 ## 2026-10-17 - Reprise de la phase avant production
 

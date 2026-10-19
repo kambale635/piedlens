@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     "piedlens_platform.event_bus.apps.EventBusConfig",
     "contexts.rules_engine.apps.RulesEngineConfig",
     "contexts.identity.apps.IdentityConfig",
+    "contexts.billing.apps.BillingConfig",
     "contexts.access_control.apps.AccessControlConfig",
     "contexts.platform_connectors.apps.PlatformConnectorsConfig",
     "contexts.backup.apps.BackupConfig",

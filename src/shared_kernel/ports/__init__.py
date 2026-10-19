@@ -1,6 +1,8 @@
 from typing import Protocol
 from uuid import UUID
 
+from .entitlement_reader import IEntitlementReader
+
 
 class IConnectionUsageReader(Protocol):
     """Read the active platform-connection usage owned by Platform Connectors."""

@@ -116,6 +116,29 @@ Les prix et entitlements semés pour Discovery, Starter, Pro et Agency sont des 
 - **Postconditions** : mettent à jour les durées, plan cible, exigence de carte, récompense, limite par parrain et définitions de coupons sans redéploiement; l'audit HTTP metadata-only est produit par les middlewares.
 - **Valeurs seed provisoires** : essai Starter de 14 jours sans carte; parrainage 10% pendant 30 jours, au plus 10 filleuls par parrain. Toutes sont administrables.
 
+### `SendBulkMessageUseCase` — extension outbound
+- **Entrée** : `{ segmentId, template, channel, deliveryMode: "manual_link"|"api_send" (défaut manual_link), category: "service"|"utility"|"marketing"|"authentication", marketingConfirmed?: boolean, confirmedEstimate?: object }`
+- **Préconditions** : `bulk_messages=true`; mode présent dans `reminder_modes`; pour `api_send`, quota mensuel non dépassé et tarif configuré pour le pays/catégorie/devise.
+- **Postconditions** : `manual_link` retourne des liens `wa.me` pré-remplis et n'appelle aucun sender. `api_send` met la campagne en file; le quota est réservé au worker avec idempotence avant chaque appel de sender. Marketing exige la confirmation explicite de l'estimation courante.
+- **Erreurs** : `402 PLAN_UPGRADE_REQUIRED`, `422 OUTBOUND_CAP_REACHED`, `400 MARKETING_CONFIRMATION_REQUIRED`, `400 OUTBOUND_RATE_NOT_CONFIGURED`, `400 MANUAL_LINK_RECIPIENT_UNAVAILABLE`.
+
+### `EstimateOutboundCostUseCase`
+- **Mode d'entrée** : `POST /api/v1/outbound/estimate`, permission `outbound.estimate`
+- **Entrée** : `{ category: "service"|"utility"|"marketing"|"authentication", count?: integer }`; merchant dérivé du tenant.
+- **Sortie** : `{ country, category, count, estimate: { unitAmountMinor, amountMinor, currency, numberOfMessages, chargeProcessor: "meta_direct" } }`
+- **Postconditions** : lit un tarif country/category actif à la date courante; aucune conversion; aucune transaction Meta n'est débitée par Billing.
+- **Erreurs** : `400 OUTBOUND_RATE_NOT_CONFIGURED`, `400 VALIDATION_ERROR`.
+
+### `GetOutboundUsageUseCase`
+- **Mode d'entrée** : `GET /api/v1/outbound/usage`, permission `outbound.usage.read`
+- **Sortie** : usages API du merchant courant par catégorie pour le mois courant; les liens manuels sont exclus.
+
+### `UpsertOutboundRateUseCase`
+- **Mode d'entrée** : `PUT /api/v1/admin/outbound-rates`, permission globale `plan.manage`
+- **Entrée** : `{ country, category, currency, amountMinor, validFrom, validUntil?, active? }`
+- **Postconditions** : administre le tarif Meta estimatif avec sa fenêtre de validité; les vrais frais Meta restent facturés directement au vendeur par Meta.
+- **Valeurs par défaut** : aucun tarif n'est seedé faute de grille Meta vérifiée par pays/catégorie; l'estimation échoue clairement tant qu'une ligne valable n'est pas configurée.
+
 ---
 
 ## Contexte : Access Control (détails : `20-context-access-control.md`)
@@ -281,6 +304,15 @@ Chaque bounded context consomme cet événement de façon idempotente (INV-TR-03
 - **Préconditions** : transition valide selon la machine à états (voir `02-domain-model.md` et invariants)
 - **Erreurs** : `409 INVALID_ORDER_TRANSITION`
 - **Événements publiés** : `OrderStatusChanged`
+
+### `ReconcileOrderStatusFromMessageUseCase`
+- **Déclencheur** : `MessageEvaluated` dont `extractedData.intent` est configure a `payment_received` ou `delivery_confirmed`.
+- **Entrée** : `{ eventId: uuid, merchantId: uuid, contactId: uuid, intent: "payment_received"|"delivery_confirmed", sourceMessageId: uuid, sourceMessageTimestamp: datetime }`
+- **Sortie** : `{ outcome: "updated"|"ignored"|"already_processed", orderId?: uuid, status?: string }`
+- **Préconditions** : dernier Order ouvert compatible du merchant/contact dans `ORDER_DETECTION_CORRELATION_WINDOW_DAYS`; paiement cible `pending_payment`, livraison cible `paid_not_delivered`.
+- **Postconditions** : aucun Order cree; transition faite par l'agregat, avec Outbox et marqueur idempotent dans la meme transaction.
+- **Erreurs** : `409 INVALID_ORDER_TRANSITION`; absence de cible compatible retourne `ignored`.
+- **Événements publiés** : `OrderStatusChanged` uniquement si transition effectuee.
 
 ### `GetDormantMoneyDashboardUseCase`
 - **Entrée** : `{ merchantId: uuid, olderThanHours?: number (défaut 24) }`

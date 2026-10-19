@@ -22,9 +22,11 @@ Catalogue extrait des vues enregistrées dans le resolver Django, via leur attri
 | `segment.create` | CRM | `POST /api/v1/segments` |
 | `segment.bulk_message` | CRM | `POST /api/v1/segments/{segment_id}/bulk-message` |
 | `rule_config.edit` | Rules Engine | `PUT /api/v1/rule-sets/{scope}` (global/country scopes also require a global role assignment) |
-| `plan.manage` | Billing | `PUT /api/v1/admin/plans/{code}`, `PUT /api/v1/admin/plan-prices`, `PUT /api/v1/admin/trial-policy`, `PUT /api/v1/admin/referral-policy`, `PUT /api/v1/admin/coupons` (permission globale) |
+| `plan.manage` | Billing | `PUT /api/v1/admin/plans/{code}`, `PUT /api/v1/admin/plan-prices`, `PUT /api/v1/admin/trial-policy`, `PUT /api/v1/admin/referral-policy`, `PUT /api/v1/admin/coupons`, `PUT /api/v1/admin/outbound-rates` (permission globale) |
 | `billing.trial.start` | Billing | `POST /api/v1/trials` |
 | `billing.coupon.apply` | Billing | `POST /api/v1/coupons/apply` |
 | `billing.referral.redeem` | Billing | `POST /api/v1/referrals/redeem` |
+| `outbound.estimate` | Billing | `POST /api/v1/outbound/estimate` |
+| `outbound.usage.read` | Billing | `GET /api/v1/outbound/usage` |
 
-Total : 21 permissions, extraites du resolver Django. Les routes `GET /api/v1/pricing` et webhooks documentés ont une politique publique explicite. Les routes publiques Identity et `POST /api/v1/merchants` ont une politique publique explicite. Les use cases déclenchés par événement ou job n'ont pas de route. Toute route non marquée `@requires_permission` ou `@public_route` est refusée par défaut.
+Total : 23 permissions, extraites du resolver Django. Les routes `GET /api/v1/pricing` et webhooks documentés ont une politique publique explicite. Les routes publiques Identity et `POST /api/v1/merchants` ont une politique publique explicite. Les use cases déclenchés par événement ou job n'ont pas de route. Toute route non marquée `@requires_permission` ou `@public_route` est refusée par défaut.

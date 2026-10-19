@@ -394,6 +394,14 @@ class DjangoOrderDetectionAcidTests(TransactionTestCase):
             def next_attempt_at(self, attempt_count, failed_at):
                 return failed_at + timedelta(minutes=5)
 
+        class ManualLinkBuilder:
+            def create_link(self, merchant_id, contact_id, content):
+                return "https://wa.me/14155550123?text=Reminder"
+
+        class OutboundUsage:
+            def reserve(self, merchant_id, category, idempotency_key):
+                return {"category": category}
+
         delivery = Delivery()
         worker = SendScheduledRemindersUseCase(
             order_repository=self.order_repository,
@@ -408,6 +416,8 @@ class DjangoOrderDetectionAcidTests(TransactionTestCase):
             clock=SystemClock(),
             batch_limit=10,
             lease_duration=timedelta(minutes=5),
+            manual_link_builder=ManualLinkBuilder(),
+            outbound_usage=OutboundUsage(),
         )
 
         result = worker.execute()

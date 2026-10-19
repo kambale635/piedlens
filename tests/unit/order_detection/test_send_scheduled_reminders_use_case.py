@@ -132,6 +132,27 @@ class RecordingDelivery:
         return self.outcomes.pop(0)
 
 
+class FixedManualLinkBuilder:
+    def __init__(self):
+        self.calls = []
+
+    def create_link(self, merchant_id, contact_id, content):
+        self.calls.append((merchant_id, contact_id, content))
+        return f"https://wa.me/14155550123?text={content.replace(' ', '%20')}"
+
+
+class RecordingOutboundUsage:
+    def __init__(self):
+        self.reservations = []
+
+    def reserve(self, merchant_id, category, idempotency_key):
+        self.reservations.append((merchant_id, category, idempotency_key))
+        return {"category": category}
+
+    def usage_for(self, merchant_id):
+        return []
+
+
 class FixedRetryPolicy:
     def next_attempt_at(self, attempt_count, failed_at):
         return failed_at + timedelta(minutes=2 ** attempt_count)
@@ -165,6 +186,8 @@ class SendScheduledRemindersUseCaseTests(unittest.TestCase):
         self.order_repository = InMemoryOrderRepository([self.order])
         self.processed_events = InMemoryProcessedEvents()
         self.delivery = RecordingDelivery([ReminderDeliveryResult(succeeded=True)])
+        self.manual_link_builder = FixedManualLinkBuilder()
+        self.outbound_usage = RecordingOutboundUsage()
         self.outbox = InMemoryOutbox()
 
     def make_use_case(self, mode, delivery=None):
@@ -181,6 +204,8 @@ class SendScheduledRemindersUseCaseTests(unittest.TestCase):
             clock=self.clock,
             batch_limit=10,
             lease_duration=timedelta(minutes=5),
+            manual_link_builder=self.manual_link_builder,
+            outbound_usage=self.outbound_usage,
         )
 
     def test_automatic_success_is_idempotent_and_marks_processed(self):
@@ -202,6 +227,16 @@ class SendScheduledRemindersUseCaseTests(unittest.TestCase):
         self.assertEqual(self.reminder.status, ReminderStatus.PROPOSED)
         self.assertEqual(self.delivery.calls, [])
         self.assertIsInstance(self.outbox.events[0], ReminderProposed)
+        self.assertTrue(self.outbox.events[0].manual_link.startswith("https://wa.me/"))
+        self.assertEqual(len(self.manual_link_builder.calls), 1)
+
+    def test_api_delivery_reserves_utility_quota_with_stable_idempotency_key(self):
+        self.make_use_case(ReminderDeliveryMode.API_SEND).execute()
+
+        self.assertEqual(
+            self.outbound_usage.reservations,
+            [(self.order.merchant_id, "utility", f"reminder:{self.reminder.id}")],
+        )
 
     def test_failed_send_is_rescheduled_and_not_marked_processed(self):
         failing_delivery = RecordingDelivery(

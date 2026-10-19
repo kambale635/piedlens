@@ -10,6 +10,7 @@ from .models import (
     PlanDefinitionRecord,
     PlanEntitlementRecord,
     PlanPriceRecord,
+    OutboundRateRecord,
     ReferralPolicyRecord,
     TrialPolicyRecord,
 )
@@ -110,4 +111,29 @@ class DjangoPlanAdminRepository(IPlanAdminRepository):
             "valid_from": coupon.valid_from,
             "valid_until": coupon.valid_until,
             "is_active": coupon.is_active,
+        }
+
+    @transaction.atomic
+    def upsert_outbound_rate(
+        self, country, category, currency, amount_minor, valid_from, valid_until, is_active
+    ):
+        rate, _ = OutboundRateRecord.objects.update_or_create(
+            country=country,
+            category=category,
+            currency=currency,
+            valid_from=valid_from,
+            defaults={
+                "amount_minor": amount_minor,
+                "valid_until": valid_until,
+                "is_active": is_active,
+            },
+        )
+        return {
+            "country": rate.country,
+            "category": rate.category,
+            "currency": rate.currency,
+            "amount_minor": rate.amount_minor,
+            "valid_from": rate.valid_from,
+            "valid_until": rate.valid_until,
+            "is_active": rate.is_active,
         }

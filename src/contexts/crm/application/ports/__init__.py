@@ -113,11 +113,14 @@ class IBulkMessageCampaignRepository(Protocol):
     def mark_sent(self, campaign_id: UUID, contact_id: UUID) -> None:
         """Mark one recipient delivered in its own transaction."""
 
+    def mark_manual_link(self, campaign_id: UUID, contact_id: UUID) -> None:
+        """Mark that a manual WhatsApp link was proposed without sending an API message."""
+
     def mark_failed(self, campaign_id: UUID, contact_id: UUID, failure_code: str) -> None:
         """Mark one recipient failed without storing message content."""
 
-    def counts(self, campaign_id: UUID) -> tuple[int, int, int]:
-        """Return sent, failed, and pending recipient counts."""
+    def counts(self, campaign_id: UUID) -> tuple[int, int, int, int]:
+        """Return sent, failed, pending, and manual-link proposal counts."""
 
     def complete(self, campaign_id: UUID) -> BulkMessageCampaign | None:
         """Mark the campaign completed when its recipient journals are terminal."""

@@ -162,3 +162,51 @@ class OutboxEventRecord(models.Model):
     class Meta:
         db_table = "billing_outbox_events"
         indexes = [models.Index(fields=["published_at", "occurred_at"])]
+
+
+class OutboundRateRecord(models.Model):
+    country = models.CharField(max_length=2)
+    category = models.CharField(max_length=24)
+    currency = models.CharField(max_length=3)
+    amount_minor = models.PositiveBigIntegerField()
+    valid_from = models.DateTimeField()
+    valid_until = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "billing_outbound_rates"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["country", "category", "currency", "valid_from"],
+                name="uniq_billing_outbound_rate_period",
+            )
+        ]
+        indexes = [models.Index(fields=["country", "category", "is_active"])]
+
+
+class OutboundMessageUsageRecord(models.Model):
+    merchant_id = models.UUIDField()
+    month = models.DateField()
+    category = models.CharField(max_length=24)
+    count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "billing_outbound_message_usage"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["merchant_id", "month", "category"],
+                name="uniq_billing_outbound_usage_month_category",
+            )
+        ]
+        indexes = [models.Index(fields=["merchant_id", "month"])]
+
+
+class OutboundMessageReservationRecord(models.Model):
+    idempotency_key = models.CharField(max_length=160, primary_key=True)
+    merchant_id = models.UUIDField()
+    month = models.DateField()
+    category = models.CharField(max_length=24)
+
+    class Meta:
+        db_table = "billing_outbound_message_reservations"
+        indexes = [models.Index(fields=["merchant_id", "month"])]

@@ -28,6 +28,9 @@ class DjangoBulkMessageCampaignRepository(IBulkMessageCampaignRepository):
             merchant_id=campaign.merchant_id,
             segment_id=campaign.segment_id,
             channel=campaign.channel,
+            delivery_mode=campaign.delivery_mode,
+            category=campaign.category,
+            cost_estimate=campaign.cost_estimate,
             template=self._content_cipher.encrypt(campaign.template),
             status=campaign.status.value,
             recipient_count=len(campaign.recipient_contact_ids),
@@ -38,7 +41,7 @@ class DjangoBulkMessageCampaignRepository(IBulkMessageCampaignRepository):
                 BulkMessageRecipientRecord(
                     campaign_id=campaign.id,
                     contact_id=contact_id,
-                    status="queued",
+                    status="manual_link" if campaign.delivery_mode == "manual_link" else "queued",
                 )
                 for contact_id in campaign.recipient_contact_ids
             ]
@@ -63,6 +66,9 @@ class DjangoBulkMessageCampaignRepository(IBulkMessageCampaignRepository):
             merchant_id=record.merchant_id,
             segment_id=record.segment_id,
             channel=record.channel,
+            delivery_mode=record.delivery_mode,
+            category=record.category,
+            cost_estimate=record.cost_estimate,
             template=template,
             recipient_contact_ids=recipient_ids,
             created_at=record.created_at,
@@ -88,6 +94,14 @@ class DjangoBulkMessageCampaignRepository(IBulkMessageCampaignRepository):
             status="queued",
         ).update(status="sent", sent_at=datetime.now(timezone.utc), failure_code=None)
 
+    def mark_manual_link(self, campaign_id: UUID, contact_id: UUID) -> None:
+        """Record a manual link proposal without an outbound API request."""
+        BulkMessageRecipientRecord.objects.filter(
+            campaign_id=campaign_id,
+            contact_id=contact_id,
+            status="queued",
+        ).update(status="manual_link", failure_code=None)
+
     def mark_failed(self, campaign_id: UUID, contact_id: UUID, failure_code: str) -> None:
         """Persist a terminal failure code without storing message body or exception text."""
         BulkMessageRecipientRecord.objects.filter(
@@ -96,13 +110,14 @@ class DjangoBulkMessageCampaignRepository(IBulkMessageCampaignRepository):
             status="queued",
         ).update(status="failed", failure_code=failure_code)
 
-    def counts(self, campaign_id: UUID) -> tuple[int, int, int]:
-        """Count terminal and queued recipient journals for campaign progress."""
+    def counts(self, campaign_id: UUID) -> tuple[int, int, int, int]:
+        """Count sent, failed, queued, and manual-link recipient journals."""
         records = BulkMessageRecipientRecord.objects.filter(campaign_id=campaign_id)
         return (
             records.filter(status="sent").count(),
             records.filter(status="failed").count(),
             records.filter(status="queued").count(),
+            records.filter(status="manual_link").count(),
         )
 
     def complete(self, campaign_id: UUID) -> BulkMessageCampaign | None:

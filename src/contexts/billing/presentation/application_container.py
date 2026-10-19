@@ -13,6 +13,12 @@ from contexts.billing.application.use_cases.upsert_growth_policy_use_cases impor
     UpsertTrialPolicyUseCase,
 )
 from contexts.billing.application.use_cases.upsert_coupon_use_case import UpsertCouponUseCase
+from contexts.billing.application.use_cases.estimate_outbound_cost_use_case import (
+    EstimateOutboundCostUseCase,
+)
+from contexts.billing.application.use_cases.upsert_outbound_rate_use_case import (
+    UpsertOutboundRateUseCase,
+)
 from contexts.billing.infrastructure.adapters.django_plan_catalog_reader import (
     DjangoPlanCatalogReader,
 )
@@ -27,6 +33,11 @@ from contexts.billing.infrastructure.persistence.django_billing_unit_of_work imp
 from contexts.billing.application.use_cases.list_pricing_use_case import ListPricingUseCase
 from contexts.billing.infrastructure.adapters.django_plan_pricing_reader import (
     DjangoPlanPricingReader,
+)
+from contexts.billing.infrastructure.adapters.django_outbound_services import (
+    DjangoMerchantOutboundUsageReader,
+    DjangoOutboundCostEstimator,
+    DjangoOutboundUsageRecorder,
 )
 from contexts.billing.infrastructure.persistence.django_plan_admin_repository import (
     DjangoPlanAdminRepository,
@@ -93,3 +104,23 @@ class BillingContainer:
     @staticmethod
     def upsert_coupon() -> UpsertCouponUseCase:
         return UpsertCouponUseCase(DjangoPlanAdminRepository())
+
+    @staticmethod
+    def estimate_outbound_cost(
+        merchant_country_reader, merchant_currency_reader
+    ) -> EstimateOutboundCostUseCase:
+        return EstimateOutboundCostUseCase(
+            merchant_country_reader, merchant_currency_reader, DjangoOutboundCostEstimator()
+        )
+
+    @staticmethod
+    def upsert_outbound_rate() -> UpsertOutboundRateUseCase:
+        return UpsertOutboundRateUseCase(DjangoPlanAdminRepository())
+
+    @staticmethod
+    def outbound_usage_recorder() -> DjangoOutboundUsageRecorder:
+        return DjangoOutboundUsageRecorder(DjangoEntitlementReader(DjangoMerchantPlanReader()))
+
+    @staticmethod
+    def outbound_usage_reader() -> DjangoMerchantOutboundUsageReader:
+        return DjangoMerchantOutboundUsageReader()

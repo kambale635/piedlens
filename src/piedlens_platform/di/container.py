@@ -69,6 +69,12 @@ from contexts.order_detection.infrastructure.adapters.system_clock import System
 from contexts.order_detection.infrastructure.adapters.django_reminder_policy_provider import (
     DjangoReminderPolicyProvider,
 )
+from contexts.order_detection.infrastructure.adapters.django_reminder_delivery_policy import (
+    DjangoReminderDeliveryPolicy,
+)
+from contexts.crm.infrastructure.adapters.django_manual_message_link_builder import (
+    DjangoManualMessageLinkBuilder,
+)
 from contexts.crm.application.ports.contact_defaults import IContactDefaultsProvider
 from contexts.crm.application.use_cases.update_contact_from_message_use_case import (
     UpdateContactFromMessageUseCase,
@@ -169,6 +175,15 @@ from contexts.billing.infrastructure.adapters.django_entitlement_reader import (
 )
 from contexts.billing.infrastructure.adapters.django_plan_catalog_reader import (
     DjangoPlanCatalogReader,
+)
+from contexts.billing.infrastructure.adapters.django_outbound_services import (
+    DjangoOutboundCostEstimator,
+)
+from contexts.billing.application.use_cases.estimate_outbound_cost_use_case import (
+    EstimateOutboundCostUseCase,
+)
+from contexts.platform_connectors.infrastructure.adapters.platform_campaign_sender import (
+    PlatformCampaignSender,
 )
 from contexts.identity.infrastructure.adapters.django_merchant_plan_reader import (
     DjangoMerchantPlanReader,
@@ -341,6 +356,15 @@ from contexts.platform_connectors.infrastructure.adapters.django_connection_cons
 
 class ApplicationContainer:
     @staticmethod
+    def estimate_outbound_cost() -> EstimateOutboundCostUseCase:
+        """Compose Billing's estimator with Identity's country reader at the system boundary."""
+        return EstimateOutboundCostUseCase(
+            DjangoMerchantCountryReader(),
+            DjangoMerchantCurrencyReader(),
+            DjangoOutboundCostEstimator(),
+        )
+
+    @staticmethod
     def channel_provider_registry() -> ChannelProviderRegistry:
         """Build configured channel adapters and reject unimplemented real providers."""
         channel_codes = ("whatsapp", "instagram", "facebook")
@@ -507,7 +531,9 @@ class ApplicationContainer:
             order_repository=DjangoOrderRepository(),
             reminder_repository=DjangoReminderRepository(),
             processed_events=DjangoOrderDetectionProcessedEventRepository(),
-            delivery_policy=delivery_policy,
+            delivery_policy=delivery_policy or DjangoReminderDeliveryPolicy(
+                ApplicationContainer._billing_entitlements()
+            ),
             message_provider=message_provider,
             delivery=delivery,
             retry_policy=retry_policy,
@@ -516,6 +542,8 @@ class ApplicationContainer:
             clock=SystemClock(),
             batch_limit=batch_limit,
             lease_duration=lease_duration,
+            manual_link_builder=DjangoManualMessageLinkBuilder(),
+            outbound_usage=ApplicationContainer._billing_outbound_usage(),
         )
 
     @staticmethod
@@ -647,12 +675,15 @@ class ApplicationContainer:
             unit_of_work=DjangoCRMUnitOfWork(),
             outbox=DjangoCRMOutbox(),
             entitlements=ApplicationContainer._billing_entitlements(),
+            cost_estimator=DjangoOutboundCostEstimator(),
+            merchant_country_reader=DjangoMerchantCountryReader(),
+            merchant_currency_reader=DjangoMerchantCurrencyReader(),
         )
 
     @staticmethod
     def process_bulk_message_campaign(
         rate_limiter,
-        message_sender,
+        message_sender=None,
     ) -> ProcessBulkMessageCampaignUseCase:
         """Wire the campaign consumer while receiving platform adapters externally."""
         return ProcessBulkMessageCampaignUseCase(
@@ -662,10 +693,21 @@ class ApplicationContainer:
             ),
             processed_events=DjangoProcessedMessageRepository(),
             rate_limiter=rate_limiter,
-            message_sender=message_sender,
+            message_sender=message_sender or PlatformCampaignSender(
+                ApplicationContainer.channel_provider_registry()
+            ),
             unit_of_work=DjangoCRMUnitOfWork(),
             outbox=DjangoCRMOutbox(),
+            outbound_usage=ApplicationContainer._billing_outbound_usage(),
         )
+
+    @staticmethod
+    def _billing_outbound_usage():
+        from contexts.billing.infrastructure.adapters.django_outbound_services import (
+            DjangoOutboundUsageRecorder,
+        )
+
+        return DjangoOutboundUsageRecorder(ApplicationContainer._billing_entitlements())
 
     @staticmethod
     def register_user() -> RegisterUserUseCase:

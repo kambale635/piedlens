@@ -23,5 +23,11 @@ class InvalidOAuthCodeException(ValidationException):
     error_code = "INVALID_OAUTH_CODE"
 
 
+class NotABusinessAccountException(ValidationException):
+    """Reject a WhatsApp number that the provider mock marks ineligible for Business API."""
+
+    error_code = "NOT_A_BUSINESS_ACCOUNT"
+
+
 class PlatformConnectionNotFoundException(ResourceNotFoundException):
     """Report a missing or inactive connection without revealing another merchant's data."""

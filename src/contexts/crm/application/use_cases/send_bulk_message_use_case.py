@@ -1,9 +1,15 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import re
+from urllib.parse import quote
 from uuid import UUID, uuid4
 
-from shared_kernel.application_exceptions import PlanUpgradeRequiredException
-from shared_kernel.ports import IEntitlementReader
+from shared_kernel.application_exceptions import PlanUpgradeRequiredException, ValidationException
+from shared_kernel.ports import (
+    IEntitlementReader,
+    IMerchantCurrencyReader,
+    IOutboundCostEstimator,
+)
 
 from ...domain.entities.bulk_message_campaign import BulkMessageCampaign
 from ...domain.repositories.i_contact_repository import IContactRepository
@@ -21,6 +27,16 @@ class SendBulkMessageResult:
     bulk_message_log_id: UUID
     status: str
     recipient_count: int
+    manual_links: tuple[dict[str, str], ...] = ()
+    cost_estimate: dict[str, object] | None = None
+
+
+class MarketingConfirmationRequiredException(ValidationException):
+    error_code = "MARKETING_CONFIRMATION_REQUIRED"
+
+
+class ManualLinkRecipientUnavailableException(ValidationException):
+    error_code = "MANUAL_LINK_RECIPIENT_UNAVAILABLE"
 
 
 class SendBulkMessageUseCase:
@@ -48,6 +64,9 @@ class SendBulkMessageUseCase:
     """
 
     SUPPORTED_CHANNELS = frozenset({"whatsapp", "instagram"})
+    SUPPORTED_CATEGORIES = frozenset(
+        {"service", "utility", "marketing", "authentication"}
+    )
 
     def __init__(
         self,
@@ -57,6 +76,9 @@ class SendBulkMessageUseCase:
         unit_of_work: ICRMUnitOfWork,
         outbox: ICRMOutbox,
         entitlements: IEntitlementReader,
+        cost_estimator: IOutboundCostEstimator,
+        merchant_country_reader,
+        merchant_currency_reader: IMerchantCurrencyReader,
     ) -> None:
         """Receive CRM repositories, UnitOfWork, and Outbox through ports."""
         self._segment_repository = segment_repository
@@ -65,6 +87,9 @@ class SendBulkMessageUseCase:
         self._unit_of_work = unit_of_work
         self._outbox = outbox
         self._entitlements = entitlements
+        self._cost_estimator = cost_estimator
+        self._merchant_country_reader = merchant_country_reader
+        self._merchant_currency_reader = merchant_currency_reader
         self._membership_calculator = SegmentMembershipCalculator()
 
     def execute(
@@ -73,22 +98,77 @@ class SendBulkMessageUseCase:
         template: str,
         channel: str,
         merchant_id: UUID | None = None,
+        delivery_mode: str = "manual_link",
+        category: str = "marketing",
+        marketing_confirmed: bool = False,
+        confirmed_estimate: dict[str, object] | None = None,
     ) -> SendBulkMessageResult:
         """Persist one campaign and publish its queue request without sending inline."""
         if channel not in self.SUPPORTED_CHANNELS:
             raise BulkMessageChannelException("Unsupported bulk message channel.")
-        if self._entitlements.entitlements_for(merchant_id).get("bulk_messages") is not True:
+        if delivery_mode not in {"manual_link", "api_send"}:
+            raise BulkMessageChannelException("Unsupported outbound delivery mode.")
+        if delivery_mode == "manual_link" and channel != "whatsapp":
+            raise BulkMessageChannelException("Manual link delivery is available only for WhatsApp.")
+        if category not in self.SUPPORTED_CATEGORIES:
+            raise BulkMessageChannelException("Unsupported outbound message category.")
+        entitlements = self._entitlements.entitlements_for(merchant_id)
+        if entitlements.get("bulk_messages") is not True:
             raise PlanUpgradeRequiredException("bulk_messages")
+        allowed_modes = entitlements.get("reminder_modes", [])
+        if delivery_mode not in allowed_modes:
+            raise PlanUpgradeRequiredException("reminder_modes")
         segment = self._segment_repository.find_by_id(segment_id)
         if segment is None or (merchant_id is not None and segment.merchant_id != merchant_id):
             raise SegmentNotFoundException("CRM segment was not found.")
 
         contacts = self._contact_repository.find_by_merchant(segment.merchant_id)
         members = self._membership_calculator.evaluate(segment.definition_rule, contacts)
+        manual_links: tuple[dict[str, str], ...] = ()
+        cost_estimate = None
+        if delivery_mode == "manual_link":
+            links = []
+            for contact in members:
+                recipient = contact.external_identifier
+                if not re.fullmatch(r"[1-9][0-9]{7,14}", recipient):
+                    raise ManualLinkRecipientUnavailableException(
+                        "Contact has no international phone number usable for a WhatsApp link."
+                    )
+                links.append(
+                    {
+                        "contactId": str(contact.id),
+                        "url": f"https://wa.me/{recipient}?text={quote(template)}",
+                    }
+                )
+            manual_links = tuple(links)
+        else:
+            if category == "marketing" and not marketing_confirmed:
+                raise MarketingConfirmationRequiredException(
+                    "Marketing delivery requires explicit cost confirmation."
+                )
+            if members:
+                country = self._merchant_country_reader.country_code_for(segment.merchant_id)
+                if country is None:
+                    raise ValidationException("Merchant country is not configured.")
+                cost_estimate = self._cost_estimator.estimate(
+                    country,
+                    self._merchant_currency_reader.currency_for(segment.merchant_id),
+                    category,
+                    len(members),
+                )
+                if cost_estimate is None:
+                    raise ValidationException("Outbound message rate is not configured.")
+                if category == "marketing" and confirmed_estimate != cost_estimate:
+                    raise MarketingConfirmationRequiredException(
+                        "Confirm the current estimated cost before sending marketing messages."
+                    )
         campaign = BulkMessageCampaign.create(
             merchant_id=segment.merchant_id,
             segment_id=segment.id,
             channel=channel,
+            delivery_mode=delivery_mode,
+            category=category,
+            cost_estimate=cost_estimate,
             template=template,
             recipient_contact_ids=tuple(contact.id for contact in members),
             created_at=datetime.now(timezone.utc),
@@ -108,4 +188,6 @@ class SendBulkMessageUseCase:
             bulk_message_log_id=campaign.id,
             status=campaign.status.value,
             recipient_count=len(campaign.recipient_contact_ids),
+            manual_links=manual_links,
+            cost_estimate=cost_estimate,
         )

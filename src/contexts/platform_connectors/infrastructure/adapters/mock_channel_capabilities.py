@@ -11,6 +11,12 @@ class MockOAuthCodeExchanger:
             from ...application.exceptions import InvalidOAuthCodeException
 
             raise InvalidOAuthCodeException("OAuth code could not be exchanged.")
+        if channel_code == "whatsapp" and external_account_id == "not-business-account":
+            from ...application.exceptions import NotABusinessAccountException
+
+            raise NotABusinessAccountException(
+                "This number is not eligible for WhatsApp Business API."
+            )
         return f"mock-token-{oauth_code}", external_account_id or f"mock-{channel_code}-{oauth_code}"
 
 

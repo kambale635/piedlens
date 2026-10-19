@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from contexts.platform_connectors.application.exceptions import (
     InvalidWebhookSignatureException,
+    NotABusinessAccountException,
     PlanConnectionLimitReachedException,
 )
 from contexts.platform_connectors.application.use_cases.connect_platform_use_case import (
@@ -31,6 +32,9 @@ from contexts.platform_connectors.application.ports.channel_capabilities import 
 )
 from contexts.platform_connectors.application.services.channel_provider_registry import (
     ChannelProviderRegistry,
+)
+from contexts.platform_connectors.infrastructure.adapters.mock_channel_capabilities import (
+    MockOAuthCodeExchanger,
 )
 from contexts.platform_connectors.domain.entities.message import Message
 from contexts.platform_connectors.domain.entities.platform_connection import PlatformConnection
@@ -208,6 +212,31 @@ class PlatformConnectorUseCaseTests(unittest.TestCase):
         self.assertEqual(connection.encrypted_access_token.value, "encrypted:secret-token")
         self.assertEqual(connection.consent_given_at, FakeClock().now_utc())
         self.assertEqual(len(outbox.events), 1)
+
+    def test_mock_rejects_number_not_eligible_for_whatsapp_business(self):
+        use_case = ConnectPlatformUseCase(
+            connections=FakeConnections(),
+            providers=ChannelProviderRegistry(
+                {"whatsapp": {IOAuthCodeExchanger: MockOAuthCodeExchanger()}}
+            ),
+            channel_availability=FakeChannelAvailability(),
+            cipher=FakeCipher(),
+            usage_reader=type("Usage", (), {"count_active_connections": lambda *_: 0})(),
+            entitlement_reader=type("Entitlements", (), {"entitlements_for": lambda *_: {"max_connections": 1}})(),
+            unit_of_work=FakeUnitOfWork(),
+            outbox=FakeOutbox(),
+            clock=FakeClock(),
+        )
+
+        with self.assertRaises(NotABusinessAccountException) as raised:
+            use_case.execute(
+                self.merchant_id,
+                "whatsapp",
+                "oauth-code",
+                external_account_id="not-business-account",
+            )
+
+        self.assertEqual(raised.exception.error_code, "NOT_A_BUSINESS_ACCOUNT")
 
     def test_invalid_signature_is_rejected_before_payload_mapping(self):
         mapper = FakeMapper([])

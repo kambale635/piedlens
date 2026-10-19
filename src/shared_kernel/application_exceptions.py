@@ -19,3 +19,10 @@ class PlanUpgradeRequiredException(ApplicationException):
     def __init__(self, entitlement_key: str) -> None:
         self.entitlement_key = entitlement_key
         super().__init__(entitlement_key)
+
+
+class OutboundQuotaExceededException(ApplicationException):
+    """Signal that the configured monthly API message cap would be exceeded."""
+
+    status_code = 422
+    error_code = "OUTBOUND_CAP_REACHED"

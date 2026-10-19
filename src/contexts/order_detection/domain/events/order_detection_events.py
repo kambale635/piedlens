@@ -69,11 +69,12 @@ class ReminderSent:
 
 @dataclass(frozen=True)
 class ReminderProposed:
-    """Signals that the merchant must send this reminder manually."""
+    """Carries a prefilled manual link without making an external API request."""
 
     reminder_id: UUID
     order_id: UUID
     occurred_at: datetime
+    manual_link: str | None = None
 
 
 @dataclass(frozen=True)

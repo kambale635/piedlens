@@ -103,12 +103,18 @@ def send_bulk_message(request, segment_id):
         template=payload.get("template", ""),
         channel=payload.get("channel", ""),
         merchant_id=UUID(str(request.merchant_id)),
+        delivery_mode=payload.get("deliveryMode", "manual_link"),
+        category=payload.get("category", "marketing"),
+        marketing_confirmed=payload.get("marketingConfirmed", False),
+        confirmed_estimate=payload.get("confirmedEstimate"),
     )
     return JsonResponse(
         {
             "bulkMessageLogId": result.bulk_message_log_id,
             "status": result.status,
             "recipientCount": result.recipient_count,
+            "manualLinks": result.manual_links,
+            "costEstimate": result.cost_estimate,
         },
         status=202,
         encoder=DjangoJSONEncoder,

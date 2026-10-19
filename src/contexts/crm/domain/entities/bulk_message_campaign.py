@@ -25,6 +25,9 @@ class BulkMessageCampaign:
     merchant_id: UUID
     segment_id: UUID
     channel: str
+    delivery_mode: str
+    category: str
+    cost_estimate: dict[str, object] | None
     template: str
     recipient_contact_ids: tuple[UUID, ...]
     created_at: datetime
@@ -36,6 +39,9 @@ class BulkMessageCampaign:
         merchant_id: UUID,
         segment_id: UUID,
         channel: str,
+        delivery_mode: str,
+        category: str,
+        cost_estimate: dict[str, object] | None,
         template: str,
         recipient_contact_ids: tuple[UUID, ...],
         created_at: datetime,
@@ -46,6 +52,9 @@ class BulkMessageCampaign:
             merchant_id=merchant_id,
             segment_id=segment_id,
             channel=channel,
+            delivery_mode=delivery_mode,
+            category=category,
+            cost_estimate=cost_estimate,
             template=template,
             recipient_contact_ids=recipient_contact_ids,
             created_at=created_at,

@@ -11,6 +11,7 @@ from middleware.route_policy import requires_global_permission
 from middleware.route_policy import public_route
 from middleware.route_policy import requires_permission
 from .application_container import BillingContainer
+from piedlens_platform.di.container import ApplicationContainer
 
 
 @public_route
@@ -98,6 +99,47 @@ def upsert_coupon(request):
         payload.get("active", True),
     )
     return JsonResponse(result, encoder=DjangoJSONEncoder)
+
+
+@csrf_exempt
+@requires_global_permission("plan.manage")
+@require_http_methods(["PUT"])
+def upsert_outbound_rate(request):
+    payload = json.loads(request.body or b"{}")
+    valid_from = parse_datetime(payload.get("validFrom", ""))
+    valid_until_value = payload.get("validUntil")
+    valid_until = parse_datetime(valid_until_value) if valid_until_value else None
+    result = BillingContainer.upsert_outbound_rate().execute(
+        payload.get("country", ""),
+        payload.get("category", ""),
+        payload.get("currency", ""),
+        payload.get("amountMinor", -1),
+        valid_from,
+        valid_until,
+        payload.get("active", True),
+    )
+    return JsonResponse(result, encoder=DjangoJSONEncoder)
+
+
+@requires_permission("outbound.estimate")
+@require_http_methods(["POST"])
+def estimate_outbound(request):
+    payload = json.loads(request.body or b"{}")
+    result = ApplicationContainer.estimate_outbound_cost().execute(
+        request.merchant_id,
+        payload.get("category", ""),
+        payload.get("count", 1),
+    )
+    return JsonResponse(result.__dict__, encoder=DjangoJSONEncoder)
+
+
+@requires_permission("outbound.usage.read")
+@require_http_methods(["GET"])
+def outbound_usage(request):
+    return JsonResponse(
+        {"usage": BillingContainer.outbound_usage_reader().usage_for(request.merchant_id)},
+        encoder=DjangoJSONEncoder,
+    )
 
 
 @csrf_exempt

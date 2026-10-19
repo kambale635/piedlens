@@ -2,6 +2,10 @@ from typing import Protocol
 from uuid import UUID
 
 from .entitlement_reader import IEntitlementReader
+from .merchant_currency_reader import IMerchantCurrencyReader
+from .outbound_cost_estimator import IOutboundCostEstimator
+from .outbound_usage_recorder import IOutboundUsageRecorder
+from .manual_message_link_builder import IManualMessageLinkBuilder
 from .plan_catalog_reader import IPlanCatalogReader
 
 

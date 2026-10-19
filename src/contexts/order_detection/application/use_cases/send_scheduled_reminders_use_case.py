@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from datetime import timedelta
 from uuid import UUID
 
+from shared_kernel.application_exceptions import OutboundQuotaExceededException
+from shared_kernel.ports import IManualMessageLinkBuilder, IOutboundUsageRecorder
+
 from ...domain.entities.order import Order
 from ...domain.repositories.i_order_repository import IOrderRepository
 from ...domain.value_objects.order_status import OrderStatus
@@ -80,6 +83,8 @@ class SendScheduledRemindersUseCase:
         clock: IClock,
         batch_limit: int,
         lease_duration: timedelta,
+        manual_link_builder: IManualMessageLinkBuilder,
+        outbound_usage: IOutboundUsageRecorder,
     ) -> None:
         """Receive every policy, infrastructure port, and worker setting explicitly."""
         if batch_limit <= 0 or lease_duration <= timedelta(0):
@@ -96,6 +101,8 @@ class SendScheduledRemindersUseCase:
         self._clock = clock
         self._batch_limit = batch_limit
         self._lease_duration = lease_duration
+        self._manual_link_builder = manual_link_builder
+        self._outbound_usage = outbound_usage
 
     def execute(self) -> SendScheduledRemindersResult:
         """Claim a bounded batch and finalize each result with lease ownership checks."""
@@ -122,9 +129,19 @@ class SendScheduledRemindersUseCase:
 
             content = reminder.custom_message or self._message_provider.render(reminder, order)
             mode = self._delivery_policy.mode_for(order)
-            if mode is ReminderDeliveryMode.MANUAL_PROPOSAL:
-                if self._finalize_proposed(reminder):
+            if mode is ReminderDeliveryMode.MANUAL_LINK:
+                manual_link = self._manual_link_builder.create_link(
+                    order.merchant_id, order.contact_id, content
+                )
+                if self._finalize_proposed(reminder, manual_link):
                     proposed_count += 1
+                continue
+
+            try:
+                self._outbound_usage.reserve(
+                    order.merchant_id, "utility", f"reminder:{reminder.id}"
+                )
+            except OutboundQuotaExceededException:
                 continue
 
             delivery_result = self._delivery.send(
@@ -154,7 +171,7 @@ class SendScheduledRemindersUseCase:
         }[reminder.reminder_type]
         return order.status is required_status
 
-    def _finalize_proposed(self, claimed: Reminder) -> bool:
+    def _finalize_proposed(self, claimed: Reminder, manual_link: str) -> bool:
         with self._unit_of_work:
             reminder = self._load_owned_claim(claimed)
             if reminder is None:
@@ -162,7 +179,12 @@ class SendScheduledRemindersUseCase:
             reminder.mark_proposed()
             self._reminder_repository.save(reminder)
             self._outbox.add(
-                ReminderProposed(reminder_id=reminder.id, order_id=reminder.order_id, occurred_at=self._clock.now())
+                ReminderProposed(
+                    reminder_id=reminder.id,
+                    order_id=reminder.order_id,
+                    occurred_at=self._clock.now(),
+                    manual_link=manual_link,
+                )
             )
             self._processed_events.mark_processed(reminder.id, self.CONSUMER_NAME)
         return True

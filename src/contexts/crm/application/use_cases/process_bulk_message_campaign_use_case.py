@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
+from shared_kernel.application_exceptions import OutboundQuotaExceededException
+from shared_kernel.ports import IOutboundUsageRecorder
+
 from ...domain.entities.bulk_message_campaign import BulkMessageCampaignStatus
 from ...domain.value_objects.contact_status import ContactStatus
 from ...domain.repositories.i_contact_repository import IContactRepository
@@ -33,6 +36,7 @@ class ProcessBulkMessageCampaignResult:
 	sent_count: int
 	failed_count: int
 	pending_count: int
+	proposed_count: int
 
 
 class ProcessBulkMessageCampaignUseCase:
@@ -75,6 +79,7 @@ class ProcessBulkMessageCampaignUseCase:
 		message_sender: ICRMMessageSender,
 		unit_of_work: ICRMUnitOfWork,
 		outbox: ICRMOutbox,
+		outbound_usage: IOutboundUsageRecorder,
 	) -> None:
 		"""Receive campaign, Contact, idempotency, delivery, and transaction ports."""
 		self._campaign_repository = campaign_repository
@@ -84,6 +89,7 @@ class ProcessBulkMessageCampaignUseCase:
 		self._message_sender = message_sender
 		self._unit_of_work = unit_of_work
 		self._outbox = outbox
+		self._outbound_usage = outbound_usage
 
 	def execute(
 		self,
@@ -100,6 +106,10 @@ class ProcessBulkMessageCampaignUseCase:
 			pending_contact_ids = self._campaign_repository.find_pending_contact_ids(campaign_id)
 
 		for contact_id in pending_contact_ids:
+			if campaign.delivery_mode == "manual_link":
+				with self._unit_of_work:
+					self._campaign_repository.mark_manual_link(campaign_id, contact_id)
+				continue
 			if not self._rate_limiter.check_allowed(campaign.channel):
 				break
 			contact = self._contact_repository.find_by_id(contact_id)
@@ -108,11 +118,18 @@ class ProcessBulkMessageCampaignUseCase:
 			elif contact.status is ContactStatus.MERGED:
 				delivery_result = BulkMessageDeliveryResult(False, "CONTACT_MERGED")
 			else:
+				idempotency_key = f"{campaign.id}:{contact_id}"
+				try:
+					self._outbound_usage.reserve(
+						campaign.merchant_id, campaign.category, idempotency_key
+					)
+				except OutboundQuotaExceededException:
+					break
 				delivery_result = self._message_sender.send_message(
 					channel=campaign.channel,
 					contact=contact,
 					template=campaign.template,
-					idempotency_key=f"{campaign.id}:{contact_id}",
+					idempotency_key=idempotency_key,
 				)
 
 			with self._unit_of_work:
@@ -126,7 +143,7 @@ class ProcessBulkMessageCampaignUseCase:
 					)
 
 		with self._unit_of_work:
-			sent_count, failed_count, pending_count = self._campaign_repository.counts(
+			sent_count, failed_count, pending_count, proposed_count = self._campaign_repository.counts(
 				campaign_id
 			)
 			if pending_count == 0 and not self._processed_events.has_processed(
@@ -151,6 +168,7 @@ class ProcessBulkMessageCampaignUseCase:
 					sent_count=sent_count,
 					failed_count=failed_count,
 					pending_count=0,
+					proposed_count=proposed_count,
 				)
 
 		return self._result(campaign_id)
@@ -160,7 +178,7 @@ class ProcessBulkMessageCampaignUseCase:
 		campaign = self._campaign_repository.find_by_id(campaign_id)
 		if campaign is None:
 			raise BulkMessageCampaignNotFoundException("Bulk message campaign was not found.")
-		sent_count, failed_count, pending_count = self._campaign_repository.counts(
+		sent_count, failed_count, pending_count, proposed_count = self._campaign_repository.counts(
 			campaign_id
 		)
 		return ProcessBulkMessageCampaignResult(
@@ -168,4 +186,5 @@ class ProcessBulkMessageCampaignUseCase:
 			sent_count=sent_count,
 			failed_count=failed_count,
 			pending_count=pending_count,
+			proposed_count=proposed_count,
 		)

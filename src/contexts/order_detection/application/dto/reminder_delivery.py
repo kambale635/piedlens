@@ -11,8 +11,10 @@ from ...domain.entities.reminder import Reminder
 class ReminderDeliveryMode(StrEnum):
     """Plan-configured handling mode for a due reminder."""
 
-    MANUAL_PROPOSAL = "manual_proposal"
-    AUTOMATIC_SEND = "automatic_send"
+    MANUAL_LINK = "manual_link"
+    API_SEND = "api_send"
+    MANUAL_PROPOSAL = "manual_link"
+    AUTOMATIC_SEND = "api_send"
 
 
 @dataclass(frozen=True)

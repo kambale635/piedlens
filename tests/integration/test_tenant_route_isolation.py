@@ -154,6 +154,7 @@ class TenantRouteIsolationTests(TestCase):
             ("/api/v1/admin/trial-policy", "put"),
             ("/api/v1/admin/referral-policy", "put"),
             ("/api/v1/admin/coupons", "put"),
+            ("/api/v1/admin/outbound-rates", "put"),
         ):
             with self.subTest(path=path):
                 response = getattr(self.client, method)(
@@ -166,6 +167,21 @@ class TenantRouteIsolationTests(TestCase):
         response = self.client.get("/api/v1/pricing?country=US")
         self.assertNotEqual(response.status_code, 401)
         self.assertNotEqual(response.status_code, 403)
+        for path, method, data in (
+            ("/api/v1/outbound/estimate", "post", '{"category":"service"}'),
+            ("/api/v1/outbound/usage", "get", "{}"),
+        ):
+            with self.subTest(path=path):
+                if method == "get":
+                    response = self.client.get(path, **self._headers(self.merchant_a))
+                else:
+                    response = self.client.post(
+                        path,
+                        data=data,
+                        content_type="application/json",
+                        **self._headers(self.merchant_a),
+                    )
+                self.assertEqual(response.status_code, 403)
 
     @classmethod
     def _permission_routes(cls, patterns, prefix=""):

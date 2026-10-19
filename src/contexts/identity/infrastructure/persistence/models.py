@@ -21,7 +21,7 @@ class MerchantRecord(models.Model):
     country = models.CharField(max_length=2)
     preferred_language = models.CharField(max_length=2)
     currency = models.CharField(max_length=3)
-    subscription_plan = models.CharField(max_length=16, default="starter")
+    subscription_plan = models.CharField(max_length=32, default="discovery")
     created_at = models.DateTimeField()
 
     class Meta:

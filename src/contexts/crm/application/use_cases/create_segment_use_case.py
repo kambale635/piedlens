@@ -3,11 +3,13 @@ from uuid import UUID
 
 from shared_kernel.domain_exceptions import InvalidValueObjectException
 from shared_kernel.value_objects.money import Money
+from shared_kernel.ports import IEntitlementReader
 
 from ...domain.entities.segment import CRMSegment
 from ...domain.value_objects.segment_rule import SegmentRule
 from ..exceptions import (
     InvalidSegmentValueException,
+    SegmentLimitReachedException,
     SegmentCurrencyRequiredException,
     UnknownSegmentFieldException,
     UnsupportedSegmentOperatorException,
@@ -31,9 +33,10 @@ class CreateSegmentUseCase:
         "tags": "tags",
     }
 
-    def __init__(self, segment_repository) -> None:
+    def __init__(self, segment_repository, entitlements: IEntitlementReader) -> None:
         """Receive the CRM segment persistence port through dependency injection."""
         self._segment_repository = segment_repository
+        self._entitlements = entitlements
 
     def execute(
         self,
@@ -42,6 +45,14 @@ class CreateSegmentUseCase:
         definition_rule: dict[str, Any],
     ) -> dict[str, Any]:
         """Create a segment only when its field and operator are authorized by CRM rules."""
+        configured_limit = self._entitlements.entitlements_for(merchant_id).get(
+            "max_segments", 0
+        )
+        if not isinstance(configured_limit, int) or configured_limit < -1:
+            raise InvalidSegmentValueException("Plan segment entitlement is invalid.")
+        current_count = len(self._segment_repository.find_by_merchant(merchant_id))
+        if configured_limit != -1 and current_count >= configured_limit:
+            raise SegmentLimitReachedException()
         if not isinstance(definition_rule, dict):
             raise InvalidSegmentValueException("Segment definition must be an object.")
         field_name = definition_rule.get("field")

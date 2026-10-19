@@ -6,7 +6,6 @@ from ..value_objects.identity_values import (
     CountryCode,
     CurrencyCode,
     LanguageCode,
-    SubscriptionPlan,
 )
 from shared_kernel.domain_exceptions import DomainException
 
@@ -25,7 +24,7 @@ class Merchant:
     country: CountryCode
     preferred_language: LanguageCode
     currency: CurrencyCode
-    subscription_plan: SubscriptionPlan
+    subscription_plan: str
     created_at: datetime
 
     @classmethod
@@ -38,7 +37,7 @@ class Merchant:
         currency: CurrencyCode,
         created_at: datetime,
     ) -> "Merchant":
-        """Create an independent Merchant aggregate on the Starter plan."""
+        """Create an independent Merchant aggregate on the Discovery plan."""
         normalized_name = name.strip()
         if not normalized_name:
             raise InvalidValueObjectException("Merchant name must not be empty.")
@@ -48,14 +47,15 @@ class Merchant:
             country,
             preferred_language,
             currency,
-            SubscriptionPlan.STARTER,
+            "discovery",
             created_at,
         )
 
-    def change_plan(self, plan: SubscriptionPlan, active_connection_count: int) -> "Merchant":
+    def change_plan(
+        self, plan_code: str, active_connection_count: int, connection_limit: int | None
+    ) -> "Merchant":
         """Change plan only when its connection limit covers usage (INV-ID-03)."""
-        limit = plan.active_connection_limit
-        if limit is not None and active_connection_count > limit:
+        if connection_limit is not None and active_connection_count > connection_limit:
             raise DowngradeExceedsCurrentUsage()
         return Merchant(
             self.id,
@@ -63,6 +63,6 @@ class Merchant:
             self.country,
             self.preferred_language,
             self.currency,
-            plan,
+            plan_code,
             self.created_at,
         )

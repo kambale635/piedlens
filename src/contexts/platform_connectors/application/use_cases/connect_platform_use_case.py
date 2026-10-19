@@ -1,7 +1,7 @@
 from uuid import uuid4
 
 from shared_kernel.domain_exceptions import DomainException
-from shared_kernel.ports import IConnectionPlanReader, IConnectionUsageReader
+from shared_kernel.ports import IConnectionUsageReader, IEntitlementReader
 
 from ...domain.entities.platform_connection import PlatformConnection
 from ...domain.events.platform_events import PlatformConnected
@@ -35,7 +35,7 @@ class ConnectPlatformUseCase:
         channel_availability: IChannelAvailability,
         cipher: ITokenCipher,
         usage_reader: IConnectionUsageReader,
-        plan_reader: IConnectionPlanReader,
+        entitlement_reader: IEntitlementReader,
         unit_of_work: IPlatformConnectorsUnitOfWork,
         outbox: IPlatformConnectorsOutbox,
         clock: IPlatformClock,
@@ -46,7 +46,7 @@ class ConnectPlatformUseCase:
         self._channel_availability = channel_availability
         self._cipher = cipher
         self._usage_reader = usage_reader
-        self._plan_reader = plan_reader
+        self._entitlement_reader = entitlement_reader
         self._unit_of_work = unit_of_work
         self._outbox = outbox
         self._clock = clock
@@ -70,7 +70,10 @@ class ConnectPlatformUseCase:
         ):
             raise InvalidOAuthCodeException("Channel is not enabled for this merchant.")
 
-        limit = self._plan_reader.active_connection_limit(merchant_id)
+        raw_limit = self._entitlement_reader.entitlements_for(merchant_id).get("max_connections")
+        if not isinstance(raw_limit, int) or isinstance(raw_limit, bool) or raw_limit < -1:
+            raise InvalidOAuthCodeException("Plan connection entitlement is unavailable.")
+        limit = None if raw_limit == -1 else raw_limit
         usage = self._usage_reader.count_active_connections(merchant_id)
         if limit is not None and usage >= limit:
             raise PlanConnectionLimitReachedException("Plan connection limit reached.")

@@ -56,16 +56,6 @@ class UserStatus(str, Enum):
     DISABLED = "disabled"
 
 
-class SubscriptionPlan(str, Enum):
-    STARTER = "starter"
-    PRO = "pro"
-    AGENCY = "agency"
-
-    @property
-    def active_connection_limit(self) -> int | None:
-        return {self.STARTER: 1, self.PRO: 3, self.AGENCY: None}[self]
-
-
 @dataclass(frozen=True)
 class UserId:
     value: UUID

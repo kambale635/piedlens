@@ -18,11 +18,21 @@ class InMemorySegmentRepository:
     def save(self, segment):
         self.segments.append(segment)
 
+    def find_by_merchant(self, merchant_id):
+        return [segment for segment in self.segments if segment.merchant_id == merchant_id]
+
+
+class EntitlementStub:
+    def entitlements_for(self, merchant_id):
+        return {"max_segments": 3}
+
 
 class CreateSegmentUseCaseTests(unittest.TestCase):
     def setUp(self):
         self.repository = InMemorySegmentRepository()
-        self.use_case = CreateSegmentUseCase(segment_repository=self.repository)
+        self.use_case = CreateSegmentUseCase(
+            segment_repository=self.repository, entitlements=EntitlementStub()
+        )
 
     def test_creates_segment_from_valid_definition(self):
         result = self.use_case.execute(

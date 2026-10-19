@@ -14,7 +14,7 @@ from ..ports.identity_ports import (
 
 
 class CreateMerchantUseCase:
-    """Create a Merchant and append its registration event atomically (INV-TR-02)."""
+    """Create a Discovery Merchant and append its event atomically (INV-ID-01, INV-TR-02)."""
 
     def __init__(self, merchants: IMerchantRepository, unit_of_work: IIdentityUnitOfWork,
                  outbox: IIdentityOutbox, clock: IIdentityClock) -> None:
@@ -36,4 +36,4 @@ class CreateMerchantUseCase:
         with self.unit_of_work:
             self.merchants.save(merchant)
             self.outbox.add(MerchantRegistered(merchant.id, acting_user_id))
-        return {"merchantId": merchant.id, "subscriptionPlan": merchant.subscription_plan.value}
+        return {"merchantId": merchant.id, "subscriptionPlan": merchant.subscription_plan}

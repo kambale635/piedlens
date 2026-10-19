@@ -41,16 +41,41 @@
 ### `CreateMerchantUseCase`
 - **Mode d'entrée** : route authentifiée (`actingUserId` vient du token, jamais du body)
 - **Entrée** : `{ name: string, country: string(ISO 3166-1), preferredLanguage: string(ISO 639-1), currency: string(ISO 4217) }`
-- **Sortie** : `{ merchantId: uuid, subscriptionPlan: "starter" }`
+- **Sortie** : `{ merchantId: uuid, subscriptionPlan: "discovery" }`
 - **Erreurs** : `400 VALIDATION_ERROR`
 - **Événements publiés** : `MerchantRegistered` (consommé par Access Control, voir `AssignOwnerRoleOnMerchantRegisteredUseCase`)
 
 ### `ChangeSubscriptionPlanUseCase`
-- **Entrée** : `{ merchantId: uuid, newPlan: "starter"|"pro"|"agency" }`
+- **Entrée** : `{ merchantId: uuid, newPlan: string }` (code actif validé via `IPlanCatalogReader`; capacité via `IEntitlementReader`)
 - **Sortie** : `{ merchantId: uuid, subscriptionPlan: string, effectiveAt: datetime }`
 - **Préconditions** : paiement confirmé côté fournisseur de paiement (hors scope de ce Use Case, appelé après confirmation webhook de paiement)
 - **Erreurs** : `422 DOWNGRADE_EXCEEDS_CURRENT_USAGE` (ex: merchant a 3 connexions actives, tente de repasser Starter qui n'en autorise qu'1)
 - **Événements publiés** : `MerchantPlanChanged`
+
+### `UpsertPlanUseCase`
+- **Mode d'entrée** : `PUT /api/v1/admin/plans/{code}`, permission globale `plan.manage`
+- **Entrée** : `{ code: string (path), active?: boolean, order?: integer, entitlements?: object }`
+- **Sortie** : `{ code: string, is_active: boolean, display_order: integer }`
+- **Postconditions** : upsert atomique du plan et des seules clés d'entitlement fournies; clés omises conservées.
+- **Erreurs** : `400 INVALID_PLAN_DEFINITION`
+- **Audit** : événement d'audit HTTP metadata-only par la chaîne middleware.
+
+### `UpsertPlanPriceUseCase`
+- **Mode d'entrée** : `PUT /api/v1/admin/plan-prices`, permission globale `plan.manage`
+- **Entrée** : `{ planCode: string, country: ISO-3166-1 alpha-2 | "*", currency: ISO-4217, periodDays: integer, amountMinor: integer, active?: boolean }`
+- **Sortie** : `{ plan_code, country, currency, period_days, amount_minor, is_active }`
+- **Postconditions** : le prix explicite remplace uniquement la ligne de même plan/pays/devise/période; aucune conversion de devise.
+- **Erreurs** : `404 PLAN_NOT_FOUND`, `400 INVALID_PLAN_PRICE`
+- **Audit** : événement d'audit HTTP metadata-only par la chaîne middleware.
+
+### `ListPricingUseCase`
+- **Mode d'entrée** : `GET /api/v1/pricing?country={ISO-3166-1 alpha-2}`, route publique
+- **Entrée** : `{ country: string }`
+- **Sortie** : `{ country: string, plans: [{ code, prices: [{ country, currency, periodDays, amountMinor }], entitlements }] }`
+- **Postconditions** : seuls les plans actifs sont retournés; prix pays exact d'abord, puis prix `*` pour les couples devise/période non couverts exactement; aucune conversion automatique.
+- **Erreurs** : `400 VALIDATION_ERROR`
+
+Les prix et entitlements semés pour Discovery, Starter, Pro et Agency sont des valeurs provisoires, configurables dans Billing; voir la section 8 de `16-business-invariants-and-rules.md`.
 
 ---
 

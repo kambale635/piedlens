@@ -46,7 +46,10 @@ class SegmentPersistenceIntegrationTests(TransactionTestCase):
             self.contact_repository.save(self.usd_contact)
 
     def test_persisted_money_rule_evaluates_members_only_in_its_currency(self):
-        create_segment = CreateSegmentUseCase(self.segment_repository)
+        create_segment = CreateSegmentUseCase(
+            self.segment_repository,
+            type("Entitlements", (), {"entitlements_for": lambda *_: {"max_segments": 3}})(),
+        )
         created = create_segment.execute(
             merchant_id=self.merchant_id,
             name="XOF high value",

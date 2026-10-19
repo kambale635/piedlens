@@ -13,3 +13,7 @@ For session handoff and continuation, follow [METHODE_REPRISE.md](METHODE_REPRIS
 Compose runs migrations once before the API and workers start. PostgreSQL object storage is the local default. To use an S3-compatible bucket, set `BACKUP_OBJECT_STORAGE_BACKEND=s3` and the `BACKUP_S3_*` variables in `.env`, then start the queued deletion worker with `docker compose --profile s3 up --build`.
 
 PostgreSQL and Redis are only available on the Compose network. Do not reuse local development credentials in staging or production.
+
+## Billing catalog
+
+Plan definitions, country prices, and entitlements are stored in Billing and can be updated without redeployment. Run `python manage.py seed_billing_plans` to create the provisional Discovery, Starter, Pro, and Agency catalog. The seed is idempotent and preserves existing administrator values; `--force` explicitly restores provisional seed values. Current fallback prices are USD only, with no currency conversion, and are provisional configuration rather than committed commercial terms.

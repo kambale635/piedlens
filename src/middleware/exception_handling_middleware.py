@@ -53,4 +53,8 @@ class ExceptionHandlingMiddleware(MiddlewareMixin):
 				type(error).__name__,
 			)
 			status, code = 500, "INTERNAL_ERROR"
-		return JsonResponse({"errorCode": code, "correlationId": correlation_id}, status=status)
+		payload = {"errorCode": code, "correlationId": correlation_id}
+		entitlement_key = getattr(error, "entitlement_key", None)
+		if entitlement_key is not None:
+			payload["missingEntitlement"] = entitlement_key
+		return JsonResponse(payload, status=status)

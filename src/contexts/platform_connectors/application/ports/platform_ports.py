@@ -5,7 +5,7 @@ from uuid import UUID
 from ...domain.entities.message import Message
 from ...domain.entities.platform_connection import PlatformConnection
 from ...domain.value_objects.encrypted_token import EncryptedToken
-from shared_kernel.ports import IConnectionPlanReader, IConnectionUsageReader
+from shared_kernel.ports import IConnectionUsageReader
 
 
 class IPlatformConnectionRepository(Protocol):
@@ -84,7 +84,6 @@ class IPlatformConnectorsMerchantPurger(Protocol):
 
 
 __all__ = [
-    "IConnectionPlanReader",
     "IConnectionUsageReader",
     "IMessageRepository",
     "IPlatformClock",

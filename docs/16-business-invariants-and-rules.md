@@ -68,15 +68,34 @@
 - **INV-TR-04** : Les tables résident dans le schéma PostgreSQL `public` et leur nom commence par le préfixe de leur app Django (`<app_label>_`). Aucun modèle ne déclare de `ForeignKey`, `OneToOneField` ou `ManyToManyField` vers un autre bounded context; aucune jointure ORM ou import direct ne traverse ces frontières. Les échanges passent par des ports exposés ou des événements. Le test d'architecture vérifie ces règles. Le routage vers des schémas PostgreSQL natifs par contexte est reporté par décision réversible dans `docs/13-technology-decision-adr.md`.
 - **INV-TR-05** : Tout `Money` circule toujours comme Value Object `{ amount, currency }`, jamais comme nombre nu, dans quelque contexte que ce soit.
 
-## 8. Règles de limites par plan (référence unique, ne pas dupliquer ailleurs avec des valeurs différentes)
+## 8. Règles de limites par plan
 
-| Règle | Starter | Pro | Agency |
-|---|---|---|---|
-| Connexions plateforme max | 1 | 3 | illimité |
-| Fréquence de synchronisation | toutes les heures | temps réel (webhook) | temps réel (webhook) |
-| Relances automatiques | proposition manuelle uniquement | envoi automatique | envoi automatique |
-| Segments CRM personnalisés | 3 max | illimité | illimité |
-| Multi-clients (vue agence) | non | non | oui |
+Les valeurs effectives sont les entitlements du catalogue Billing; aucun contexte ne lit les tables Billing directement. Les valeurs ci-dessous sont le seed provisoire initial (`seed_billing_plans`), modifiable par `plan.manage` sans redéploiement. `-1` signifie illimité. Les prix sont des montants USD en centimes avec pays `*` comme repli, jamais convertis automatiquement; ils ne constituent pas une décision commerciale définitive.
+
+| Plan provisoire | Pays | Période (jours) | Prix (USD, centimes) |
+|---|---:|---:|---:|
+| Discovery | * | — | Gratuit, aucune ligne de prix |
+| Starter | * | 7 / 30 / 365 | 60 / 200 / 2000 |
+| Pro | * | 7 / 30 / 365 | 150 / 500 / 5000 |
+| Agency | * | 30 / 365 | 1500 / 15000 |
+
+| Entitlement provisoire | Discovery | Starter | Pro | Agency |
+|---|---:|---:|---:|---:|
+| `max_connections` | 1 | 1 | 3 | -1 |
+| `sync_mode` | hourly | hourly | realtime | realtime |
+| `history_days` | 7 | 90 | 365 | 730 |
+| `dormant_money_detail` | false | true | true | true |
+| `reminder_modes` | [] | [manual_link] | [manual_link, api_send] | [manual_link, api_send] |
+| `outbound_monthly_cap` | 0 | 0 | 200 | 1000 |
+| `max_segments` | 0 | 3 | -1 | -1 |
+| `bulk_messages` | false | false | true | true |
+| `max_managed_merchants` | 0 | 0 | 0 | 20 |
+| `export_enabled` | true | true | true | true |
+
+Discovery conserve l'export des données (INV-PLAN-02). Tout refus d'entitlement est `402 PLAN_UPGRADE_REQUIRED` et inclut la clé manquante. Les prix, quotas et autres valeurs ci-dessus restent des données configurables, pas des constantes métier.
+
+- **INV-PLAN-01** : tout contexte consommateur lit les limites d'un merchant exclusivement via `IEntitlementReader`; aucune lecture directe des tables Billing. Toute limite configurée dépassée retourne `402 PLAN_UPGRADE_REQUIRED` avec la clé d'entitlement manquante.
+- **INV-PLAN-02** : l'export des données reste autorisé pour tous les plans. `export_enabled` ne peut pas être désactivé par l'administration.
 
 ## 9. Règles de sécurité et conformité (rappel consolidé)
 

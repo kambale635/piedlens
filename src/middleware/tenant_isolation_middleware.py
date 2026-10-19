@@ -14,6 +14,9 @@ class TenantIsolationMiddleware:
 		return self.get_response(request)
 
 	def process_view(self, request, view_func, view_args, view_kwargs):
+		if getattr(view_func, "global_permission", False):
+			request.merchant_id = None
+			return None
 		if getattr(view_func, "public_route", False) and getattr(view_func, "authentication_required", False):
 			request.merchant_id = None
 			return None

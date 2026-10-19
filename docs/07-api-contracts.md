@@ -117,6 +117,12 @@ Chaque erreur 4xx/5xx retourne un corps standard :
 - `POST /api/v1/role-assignments` (`role.assign`) : `{ userId, roleId, scope }` → 201 `{ roleAssignmentId }`
 - `DELETE /api/v1/role-assignments/{id}` (`role.revoke`) → 200 `{ revokedAt }`
 
+## Contexte : Billing
+- `GET /api/v1/pricing?country=US` (`@public_route`) → `{ country, plans: [{ code, prices: [{ country, currency, periodDays, amountMinor }], entitlements }] }`; pays exact prioritaire, puis pays `*`, sans conversion de devise.
+- `PUT /api/v1/admin/plans/{code}` (`plan.manage`, permission globale) : `{ active?, order?, entitlements? }` → définition et entitlements configurés.
+- `PUT /api/v1/admin/plan-prices` (`plan.manage`, permission globale) : `{ planCode, country, currency, periodDays, amountMinor, active? }` → prix explicite.
+- Refus d'une fonctionnalité non incluse : HTTP 402 `{ errorCode: "PLAN_UPGRADE_REQUIRED", correlationId, missingEntitlement }`.
+
 ## Compléments : routes ajoutées après coup et permission de chaque route
 
 ### Routes ajoutées

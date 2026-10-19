@@ -3,6 +3,13 @@
 Ce fichier conserve les decisions, documents consultes, fichiers crees ou modifies et prochaines etapes afin de faciliter la reprise du projet.
 Mettre a jour ce journal a chaque etape importante.
 
+## 2026-10-19 - Phase 1 Billing : plans en données
+
+- Ajout du catalogue configurable `discovery`, `starter`, `pro`, `agency`, prix pays/devise/période et dix entitlements; seed idempotent `seed_billing_plans`, prévalidation et `--force` explicite. Le barème USD est marqué provisoire dans README et docs/16.
+- Identity valide désormais les codes via `IPlanCatalogReader`; nouvelles créations en `discovery`. `IEntitlementReader` pilote connexions, relances, segments et messages groupés sans lecture inter-contextes. Refus d'entitlement : 402 `PLAN_UPGRADE_REQUIRED` avec clé.
+- Ajout de `GET /api/v1/pricing` (exact pays puis `*`, sans conversion) et administration `PUT /admin/plans/{code}`, `PUT /admin/plan-prices` sous `plan.manage`, journalisée par le middleware. Validation ciblée phase 1 : 39/39; pricing : 2/2; migration/architecture à revérifier avant commit.
+- Prochaine phase : contrats et implémentation essais, coupons, parrainages. La suite complète reste réservée à la clôture phase 4, sur PostgreSQL et Redis réels.
+
 ## 2026-10-18 - Etape 3a terminee : canaux extensibles
 
 - Etat initial reel en cinq lignes : `ChannelConfigRecord` existait sans migration ni seed; le registre de capacites existait mais le composition root ignorait le choix d'adaptateur; seules les variables WhatsApp etaient lues; aucune suite de contrat reutilisable n'existait; `IChannelAvailability` etait declare deux fois. Le test de pipeline `fake_channel` etait deja present.

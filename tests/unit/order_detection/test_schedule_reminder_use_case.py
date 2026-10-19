@@ -15,6 +15,7 @@ from contexts.order_detection.domain.entities.reminder import ReminderType
 from shared_kernel.application_exceptions import ResourceNotFoundException, ValidationException
 from shared_kernel.value_objects.confidence_score import ConfidenceScore
 from shared_kernel.value_objects.money import Money
+from shared_kernel.application_exceptions import PlanUpgradeRequiredException
 
 
 class InMemoryOrderRepository:
@@ -91,6 +92,11 @@ class InMemoryOutbox:
         self.events.append(event)
 
 
+class FixedEntitlements:
+    def entitlements_for(self, merchant_id):
+        return {"reminder_modes": ["manual_link"]}
+
+
 class ScheduleReminderUseCaseTests(unittest.TestCase):
     def setUp(self):
         self.order = Order.detect(
@@ -113,6 +119,7 @@ class ScheduleReminderUseCaseTests(unittest.TestCase):
             unit_of_work=self.unit_of_work,
             outbox=self.outbox,
             clock=self.clock,
+            entitlements=FixedEntitlements(),
         )
 
     def test_schedules_from_injected_policy_and_appends_outbox_event(self):
@@ -143,6 +150,20 @@ class ScheduleReminderUseCaseTests(unittest.TestCase):
     def test_rejects_type_that_does_not_apply_to_order_status(self):
         with self.assertRaises(ValidationException):
             self.use_case.execute(self.order.id, "delivery_pending")
+
+    def test_requires_reminder_entitlement_with_upgrade_error(self):
+        class NoReminderEntitlements:
+            def entitlements_for(self, merchant_id):
+                return {"reminder_modes": []}
+
+        self.use_case._entitlements = NoReminderEntitlements()
+
+        with self.assertRaises(PlanUpgradeRequiredException) as raised:
+            self.use_case.execute(self.order.id, "payment_pending")
+
+        self.assertEqual(raised.exception.status_code, 402)
+        self.assertEqual(raised.exception.error_code, "PLAN_UPGRADE_REQUIRED")
+        self.assertEqual(raised.exception.entitlement_key, "reminder_modes")
 
         self.assertEqual(self.reminder_repository.saved, [])
         self.assertEqual(self.outbox.events, [])

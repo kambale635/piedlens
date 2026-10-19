@@ -13,4 +13,5 @@ urlpatterns = [
 	path("api/v1/", include("contexts.platform_connectors.urls")),
 	path("api/v1/", include("contexts.rules_engine.urls")),
 	path("api/v1/", include("contexts.backup.urls")),
+	path("api/v1/", include("contexts.billing.urls")),
 ]

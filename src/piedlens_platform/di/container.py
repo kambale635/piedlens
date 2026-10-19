@@ -164,8 +164,14 @@ from contexts.access_control.infrastructure.persistence.django_processed_event_r
 from contexts.access_control.infrastructure.persistence.django_merchant_data_purger import (
     DjangoAccessControlMerchantPurger,
 )
-from contexts.identity.infrastructure.adapters.django_connection_plan_reader import (
-    DjangoConnectionPlanReader,
+from contexts.billing.infrastructure.adapters.django_entitlement_reader import (
+    DjangoEntitlementReader,
+)
+from contexts.billing.infrastructure.adapters.django_plan_catalog_reader import (
+    DjangoPlanCatalogReader,
+)
+from contexts.identity.infrastructure.adapters.django_merchant_plan_reader import (
+    DjangoMerchantPlanReader,
 )
 from contexts.identity.infrastructure.adapters.django_merchant_currency_reader import (
     DjangoMerchantCurrencyReader,
@@ -463,6 +469,7 @@ class ApplicationContainer:
             unit_of_work=DjangoOrderDetectionUnitOfWork(),
             outbox=DjangoOrderDetectionOutbox(),
             clock=SystemClock(),
+            entitlements=ApplicationContainer._billing_entitlements(),
         )
 
     @staticmethod
@@ -599,7 +606,15 @@ class ApplicationContainer:
     @staticmethod
     def create_crm_segment() -> CreateSegmentUseCase:
         """Wire dynamic segment creation to the CRM segment repository."""
-        return CreateSegmentUseCase(segment_repository=DjangoSegmentRepository())
+        return CreateSegmentUseCase(
+            segment_repository=DjangoSegmentRepository(),
+            entitlements=ApplicationContainer._billing_entitlements(),
+        )
+
+    @staticmethod
+    def _billing_entitlements() -> DjangoEntitlementReader:
+        """Build the Billing reader with Identity's plan-code port."""
+        return DjangoEntitlementReader(DjangoMerchantPlanReader())
 
     @staticmethod
     def get_crm_segment_members() -> GetSegmentMembersUseCase:
@@ -631,6 +646,7 @@ class ApplicationContainer:
             campaign_repository=DjangoBulkMessageCampaignRepository(),
             unit_of_work=DjangoCRMUnitOfWork(),
             outbox=DjangoCRMOutbox(),
+            entitlements=ApplicationContainer._billing_entitlements(),
         )
 
     @staticmethod
@@ -699,8 +715,13 @@ class ApplicationContainer:
     @staticmethod
     def change_subscription_plan(usage_provider=None) -> ChangeSubscriptionPlanUseCase:
         return ChangeSubscriptionPlanUseCase(
-            DjangoMerchantRepository(), usage_provider or DjangoConnectionUsageReader(), DjangoIdentityUnitOfWork(),
-            DjangoIdentityOutbox(), SystemIdentityClock(),
+            merchants=DjangoMerchantRepository(),
+            usage=usage_provider or DjangoConnectionUsageReader(),
+            plan_catalog=DjangoPlanCatalogReader(),
+            entitlements=ApplicationContainer._billing_entitlements(),
+            unit_of_work=DjangoIdentityUnitOfWork(),
+            outbox=DjangoIdentityOutbox(),
+            clock=SystemIdentityClock(),
         )
 
     @staticmethod
@@ -712,7 +733,7 @@ class ApplicationContainer:
             channel_availability=ApplicationContainer.channel_availability(),
             cipher=DjangoAesTokenCipher(),
             usage_reader=DjangoConnectionUsageReader(),
-            plan_reader=DjangoConnectionPlanReader(),
+            entitlement_reader=ApplicationContainer._billing_entitlements(),
             unit_of_work=DjangoPlatformConnectorsUnitOfWork(),
             outbox=DjangoPlatformConnectorsOutbox(),
             clock=SystemPlatformClock(),

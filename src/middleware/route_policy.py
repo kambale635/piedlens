@@ -12,6 +12,19 @@ def requires_permission(permission: str, *, global_scope_param: str | None = Non
     return decorate
 
 
+def requires_global_permission(permission: str):
+    """Declare a permission checked against the global Access Control scope."""
+    if not isinstance(permission, str) or not permission.strip():
+        raise ValueError("Permission name must be a non-empty string.")
+
+    def decorate(view):
+        view.required_permission = permission
+        view.global_permission = True
+        return view
+
+    return decorate
+
+
 def public_route(view=None, *, authentication_required: bool = False):
     """Declare an explicit public policy, optionally requiring an authenticated principal."""
     def decorate(target):

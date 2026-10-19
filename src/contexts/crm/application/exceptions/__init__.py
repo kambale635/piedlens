@@ -1,4 +1,5 @@
 from shared_kernel.application_exceptions import (
+    PlanUpgradeRequiredException,
     ResourceNotFoundException,
     ValidationException,
 )
@@ -30,6 +31,13 @@ class SegmentCurrencyRequiredException(ValidationException):
 
 class InvalidSegmentPaginationException(ValidationException):
     """Reject non-positive page values before evaluating a segment."""
+
+
+class SegmentLimitReachedException(PlanUpgradeRequiredException):
+    """Reject segment creation after the configured plan quota is reached (INV-PLAN-01)."""
+
+    def __init__(self, entitlement_key: str = "max_segments"):
+        super().__init__(entitlement_key)
 
 
 class SegmentNotFoundException(ResourceNotFoundException):

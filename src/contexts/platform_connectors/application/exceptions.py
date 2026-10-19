@@ -1,12 +1,13 @@
-from shared_kernel.application_exceptions import ResourceNotFoundException, ValidationException
-from shared_kernel.domain_exceptions import DomainException
-
-
-class PlanConnectionLimitReachedException(DomainException):
+from shared_kernel.application_exceptions import (
+    PlanUpgradeRequiredException,
+    ResourceNotFoundException,
+    ValidationException,
+)
+class PlanConnectionLimitReachedException(PlanUpgradeRequiredException):
     """Reject another active connection when the merchant plan limit is reached (INV-ID-01)."""
 
-    status_code = 422
-    error_code = "PLAN_CONNECTION_LIMIT_REACHED"
+    def __init__(self, entitlement_key: str = "max_connections"):
+        super().__init__(entitlement_key)
 
 
 class InvalidWebhookSignatureException(ValidationException):

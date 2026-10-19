@@ -23,7 +23,6 @@ from contexts.identity.domain.value_objects.identity_values import (
     CountryCode,
     CurrencyCode,
     LanguageCode,
-    SubscriptionPlan,
 )
 
 
@@ -71,7 +70,14 @@ class IdentityUseCaseTests(unittest.TestCase):
             CurrencyCode("EUR"), FakeClock().now_utc()
         )
         with self.assertRaises(DowngradeExceedsCurrentUsage):
-            merchant.change_plan(SubscriptionPlan.STARTER, 2)
+            merchant.change_plan("starter", 2, 1)
+
+    def test_new_merchant_defaults_to_discovery_plan(self):
+        merchant = Merchant.register(
+            uuid4(), "Shop", CountryCode("FR"), LanguageCode("fr"),
+            CurrencyCode("EUR"), FakeClock().now_utc()
+        )
+        self.assertEqual(merchant.subscription_plan, "discovery")
 
     def test_change_plan_writes_plan_event_and_reports_downgrade_limit(self):
         merchant = Merchant.register(
@@ -80,7 +86,13 @@ class IdentityUseCaseTests(unittest.TestCase):
         )
         merchants = FakeMerchants(merchant)
         use_case = ChangeSubscriptionPlanUseCase(
-            merchants, FakeUsage(2), FakeUnitOfWork(), FakeOutbox(self.events), FakeClock()
+            merchants,
+            FakeUsage(2),
+            FakePlanCatalog({"starter", "pro"}),
+            FakeEntitlements({"starter": 1, "pro": 3}),
+            FakeUnitOfWork(),
+            FakeOutbox(self.events),
+            FakeClock(),
         )
         with self.assertRaises(DowngradeExceedsCurrentUsage) as error:
             use_case.execute(merchant.id, "starter")
@@ -88,8 +100,21 @@ class IdentityUseCaseTests(unittest.TestCase):
 
         result = use_case.execute(merchant.id, "pro")
         self.assertEqual(result["subscriptionPlan"], "pro")
-        self.assertEqual(merchants.merchant.subscription_plan, SubscriptionPlan.PRO)
+        self.assertEqual(merchants.merchant.subscription_plan, "pro")
         self.assertEqual(len(self.events), 1)
+
+    def test_change_plan_rejects_codes_absent_from_the_billing_catalog(self):
+        merchant = Merchant.register(
+            uuid4(), "Shop", CountryCode("FR"), LanguageCode("fr"),
+            CurrencyCode("EUR"), FakeClock().now_utc()
+        )
+        use_case = ChangeSubscriptionPlanUseCase(
+            FakeMerchants(merchant), FakeUsage(0), FakePlanCatalog({"discovery"}),
+            FakeEntitlements({}), FakeUnitOfWork(), FakeOutbox(self.events), FakeClock()
+        )
+        with self.assertRaises(Exception) as error:
+            use_case.execute(merchant.id, "not-configured")
+        self.assertEqual(error.exception.error_code, "VALIDATION_ERROR")
 
     def test_refresh_rejects_disabled_user(self):
         self.use_case.execute("+14155550123", "long-password-123")
@@ -175,6 +200,25 @@ class FakeUsage:
 
     def count_active_connections(self, merchant_id):
         return self.count
+
+
+class FakePlanCatalog:
+    def __init__(self, codes):
+        self.codes = codes
+
+    def is_active_plan(self, plan_code):
+        return plan_code in self.codes
+
+
+class FakeEntitlements:
+    def __init__(self, connection_limits):
+        self.connection_limits = connection_limits
+
+    def entitlements_for(self, merchant_id):
+        return {}
+
+    def entitlements_for_plan(self, plan_code):
+        return {"max_connections": self.connection_limits[plan_code]} if plan_code in self.connection_limits else {}
 
 
 class FakeUnitOfWork:

@@ -15,6 +15,9 @@ class DjangoEntitlementReader(IEntitlementReader):
         plan_code = self._merchant_plans.plan_for(merchant_id)
         if plan_code is None:
             return {}
+        return self.entitlements_for_plan(plan_code)
+
+    def entitlements_for_plan(self, plan_code: str) -> dict[str, object]:
         plan = PlanDefinitionRecord.objects.filter(
             code=plan_code, is_active=True
         ).first()

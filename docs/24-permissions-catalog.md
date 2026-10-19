@@ -22,5 +22,6 @@ Catalogue extrait des vues enregistrées dans le resolver Django, via leur attri
 | `segment.create` | CRM | `POST /api/v1/segments` |
 | `segment.bulk_message` | CRM | `POST /api/v1/segments/{segment_id}/bulk-message` |
 | `rule_config.edit` | Rules Engine | `PUT /api/v1/rule-sets/{scope}` (global/country scopes also require a global role assignment) |
+| `plan.manage` | Billing | `PUT /api/v1/admin/plans/{code}`, `PUT /api/v1/admin/plan-prices` (permission globale) |
 
-Total : 17 permissions, extraites du resolver Django. Les routes `POST /api/v1/webhooks/whatsapp` et `POST /api/v1/webhooks/instagram` sont `@public_route` et valident leur signature avant tout traitement (INV-PC-02); elles n'ajoutent pas de permission. Les routes publiques Identity et `POST /api/v1/merchants` ont une politique publique explicite. Les use cases déclenchés par événement ou job n'ont pas de route. Toute route non marquée `@requires_permission` ou `@public_route` est refusée par défaut.
+Total : 18 permissions, extraites du resolver Django. `GET /api/v1/pricing` est explicitement public. Les routes `POST /api/v1/webhooks/whatsapp` et `POST /api/v1/webhooks/instagram` sont `@public_route` et valident leur signature avant tout traitement (INV-PC-02); elles n'ajoutent pas de permission. Les routes publiques Identity et `POST /api/v1/merchants` ont une politique publique explicite. Les use cases déclenchés par événement ou job n'ont pas de route. Toute route non marquée `@requires_permission` ou `@public_route` est refusée par défaut.

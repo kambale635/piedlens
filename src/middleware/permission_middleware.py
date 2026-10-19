@@ -21,10 +21,11 @@ class PermissionMiddleware:
 		checker = getattr(settings, "PIEDLENS_PERMISSION_CHECKER", None)
 		if isinstance(checker, str):
 			checker = import_string(checker)()
+		global_permission = getattr(view_func, "global_permission", False)
 		allowed = bool(permission and checker and checker.can(
 			user_id=request.user.id,
 			permission=permission,
-			scope=request.merchant_id,
+			scope="global" if global_permission else request.merchant_id,
 		))
 		global_scope_param = getattr(view_func, "global_scope_param", None)
 		if allowed and global_scope_param is not None:

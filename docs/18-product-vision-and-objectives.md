@@ -47,6 +47,8 @@ Un outil qui ne joue que sur un seul de ces leviers se désinstalle dès que l'�
 | Pro | 4-5 $/mois | Temps réel, relances automatiques, CRM complet, multi-comptes |
 | Agence | 10-15 $/mois | Multi-clients, exports illimités, segments avancés |
 
+Les prix ci-dessus sont des objectifs produit indicatifs. Le seed Billing initial est provisoire et constitue uniquement une configuration technique USD en centimes; prix et entitlements restent administrables sans redéploiement. Voir `16-business-invariants-and-rules.md` §8.
+
 ## 6. Indicateurs de succès
 
 - Taux de rétention à 30 jours (indicateur prioritaire pour un outil censé être "non-optionnel")

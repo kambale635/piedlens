@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
+from shared_kernel.application_exceptions import PlanUpgradeRequiredException
+from shared_kernel.ports import IEntitlementReader
+
 from ...domain.entities.bulk_message_campaign import BulkMessageCampaign
 from ...domain.repositories.i_contact_repository import IContactRepository
 from ...domain.repositories.i_segment_repository import ISegmentRepository
@@ -53,6 +56,7 @@ class SendBulkMessageUseCase:
         campaign_repository: IBulkMessageCampaignRepository,
         unit_of_work: ICRMUnitOfWork,
         outbox: ICRMOutbox,
+        entitlements: IEntitlementReader,
     ) -> None:
         """Receive CRM repositories, UnitOfWork, and Outbox through ports."""
         self._segment_repository = segment_repository
@@ -60,6 +64,7 @@ class SendBulkMessageUseCase:
         self._campaign_repository = campaign_repository
         self._unit_of_work = unit_of_work
         self._outbox = outbox
+        self._entitlements = entitlements
         self._membership_calculator = SegmentMembershipCalculator()
 
     def execute(
@@ -72,6 +77,8 @@ class SendBulkMessageUseCase:
         """Persist one campaign and publish its queue request without sending inline."""
         if channel not in self.SUPPORTED_CHANNELS:
             raise BulkMessageChannelException("Unsupported bulk message channel.")
+        if self._entitlements.entitlements_for(merchant_id).get("bulk_messages") is not True:
+            raise PlanUpgradeRequiredException("bulk_messages")
         segment = self._segment_repository.find_by_id(segment_id)
         if segment is None or (merchant_id is not None and segment.merchant_id != merchant_id):
             raise SegmentNotFoundException("CRM segment was not found.")

@@ -330,6 +330,10 @@ class DjangoOrderDetectionAcidTests(TransactionTestCase):
             def delay_for(self, policy_order, reminder_type):
                 return timedelta(hours=24)
 
+        class FixedEntitlements:
+            def entitlements_for(self, merchant_id):
+                return {"reminder_modes": ["manual_link"]}
+
         use_case = ScheduleReminderUseCase(
             order_repository=self.order_repository,
             reminder_repository=DjangoReminderRepository(),
@@ -337,6 +341,7 @@ class DjangoOrderDetectionAcidTests(TransactionTestCase):
             unit_of_work=self.unit_of_work,
             outbox=self.outbox,
             clock=SystemClock(),
+            entitlements=FixedEntitlements(),
         )
 
         result = use_case.execute(order.id, "payment_pending")

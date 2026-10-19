@@ -12,6 +12,7 @@ from contexts.crm.domain.entities.contact import Contact
 from contexts.crm.domain.entities.segment import CRMSegment
 from contexts.crm.domain.value_objects.segment_rule import SegmentRule
 from shared_kernel.value_objects.money import Money
+from shared_kernel.application_exceptions import PlanUpgradeRequiredException
 
 
 class InMemorySegmentRepository:
@@ -118,6 +119,11 @@ class InMemoryOutbox:
         self.events.append(event)
 
 
+class InMemoryEntitlements:
+    def entitlements_for(self, merchant_id):
+        return {"bulk_messages": True}
+
+
 class SendBulkMessageUseCaseTests(unittest.TestCase):
     def setUp(self):
         self.merchant_id = uuid4()
@@ -163,6 +169,7 @@ class SendBulkMessageUseCaseTests(unittest.TestCase):
             campaign_repository=self.campaign_repository,
             unit_of_work=self.unit_of_work,
             outbox=self.outbox,
+            entitlements=InMemoryEntitlements(),
         )
 
     def test_creates_durable_campaign_and_outbox_without_sending_inline(self):
@@ -177,6 +184,19 @@ class SendBulkMessageUseCaseTests(unittest.TestCase):
         self.assertEqual(len(self.message_sender.sent), 0)
         self.assertEqual(self.campaign_repository.counts(result.bulk_message_log_id), (0, 0, 2))
         self.assertIsInstance(self.outbox.events[0], BulkMessageQueued)
+
+    def test_rejects_bulk_campaign_without_plan_entitlement(self):
+        class NoBulkEntitlements:
+            def entitlements_for(self, merchant_id):
+                return {"bulk_messages": False}
+
+        self.use_case._entitlements = NoBulkEntitlements()
+
+        with self.assertRaises(PlanUpgradeRequiredException) as raised:
+            self.use_case.execute(self.segment.id, "message", "whatsapp", self.merchant_id)
+
+        self.assertEqual(raised.exception.status_code, 402)
+        self.assertEqual(raised.exception.entitlement_key, "bulk_messages")
 
     def test_worker_sends_recipients_and_finalizes_outbox_once(self):
         queued = self.use_case.execute(

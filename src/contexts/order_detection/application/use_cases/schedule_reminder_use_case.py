@@ -2,7 +2,12 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from shared_kernel.application_exceptions import ResourceNotFoundException, ValidationException
+from shared_kernel.application_exceptions import (
+    PlanUpgradeRequiredException,
+    ResourceNotFoundException,
+    ValidationException,
+)
+from shared_kernel.ports import IEntitlementReader
 
 from ...domain.repositories.i_order_repository import IOrderRepository
 from ...domain.repositories.i_reminder_repository import IReminderRepository
@@ -56,6 +61,7 @@ class ScheduleReminderUseCase:
         unit_of_work: IOrderDetectionUnitOfWork,
         outbox: IOrderDetectionOutbox,
         clock: IClock,
+        entitlements: IEntitlementReader,
     ) -> None:
         """Receive order, reminder, policy, transaction, outbox and clock dependencies."""
         self._order_repository = order_repository
@@ -64,6 +70,7 @@ class ScheduleReminderUseCase:
         self._unit_of_work = unit_of_work
         self._outbox = outbox
         self._clock = clock
+        self._entitlements = entitlements
 
     def execute(
         self,
@@ -83,6 +90,12 @@ class ScheduleReminderUseCase:
             order = self._order_repository.find_by_id(order_id)
             if order is None or (merchant_id is not None and order.merchant_id != merchant_id):
                 raise ResourceNotFoundException("Order was not found.")
+
+            reminder_modes = self._entitlements.entitlements_for(
+                order.merchant_id
+            ).get("reminder_modes", [])
+            if not isinstance(reminder_modes, list) or not reminder_modes:
+                raise PlanUpgradeRequiredException("reminder_modes")
 
             applicable_status = {
                 ReminderType.PAYMENT_PENDING: OrderStatus.PENDING_PAYMENT,

@@ -8,7 +8,6 @@ from contexts.identity.domain.value_objects.identity_values import (
     EmailAddress,
     LanguageCode,
     PhoneNumber,
-    SubscriptionPlan,
     UserStatus,
 )
 from contexts.identity.application.exceptions.identity_exceptions import PhoneAlreadyRegistered
@@ -64,7 +63,7 @@ class DjangoMerchantRepository:
                 "country": merchant.country.value,
                 "preferred_language": merchant.preferred_language.value,
                 "currency": merchant.currency.value,
-                "subscription_plan": merchant.subscription_plan.value,
+                "subscription_plan": merchant.subscription_plan,
                 "created_at": merchant.created_at,
             },
         )
@@ -81,7 +80,7 @@ class DjangoMerchantRepository:
             CountryCode(record.country),
             LanguageCode(record.preferred_language),
             CurrencyCode(record.currency),
-            SubscriptionPlan(record.subscription_plan),
+            record.subscription_plan,
             record.created_at,
         )
 

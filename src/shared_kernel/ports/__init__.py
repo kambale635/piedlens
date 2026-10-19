@@ -2,6 +2,7 @@ from typing import Protocol
 from uuid import UUID
 
 from .entitlement_reader import IEntitlementReader
+from .plan_catalog_reader import IPlanCatalogReader
 
 
 class IConnectionUsageReader(Protocol):
@@ -9,13 +10,6 @@ class IConnectionUsageReader(Protocol):
 
     def count_active_connections(self, merchant_id: UUID) -> int:
         """Return the current number of active connections for one merchant."""
-
-
-class IConnectionPlanReader(Protocol):
-    """Read the configured connection capacity owned by Identity."""
-
-    def active_connection_limit(self, merchant_id: UUID) -> int | None:
-        """Return the plan's active connection limit, or None for unlimited."""
 
 
 class IMerchantPlanReader(Protocol):

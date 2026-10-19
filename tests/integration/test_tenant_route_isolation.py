@@ -11,14 +11,34 @@ from contexts.access_control.infrastructure.persistence.models import (
     RoleRecord,
 )
 from contexts.crm.infrastructure.persistence.models import ContactRecord, SegmentRecord
+from contexts.billing.infrastructure.persistence.models import (
+    PlanDefinitionRecord,
+    PlanEntitlementRecord,
+)
 from contexts.identity.infrastructure.adapters.django_security_services import DjangoTokenService
-from contexts.identity.infrastructure.persistence.models import UserRecord
+from contexts.identity.infrastructure.persistence.models import MerchantRecord, UserRecord
+from django.core.management import call_command
+from io import StringIO
 
 
 class TenantRouteIsolationTests(TestCase):
     def setUp(self):
+        call_command("seed_billing_plans", stdout=StringIO())
         self.merchant_a = uuid4()
         self.merchant_b = uuid4()
+        for merchant_id, name in (
+            (self.merchant_a, "Merchant A"),
+            (self.merchant_b, "Merchant B"),
+        ):
+            MerchantRecord.objects.create(
+                id=merchant_id,
+                name=name,
+                country="US",
+                preferred_language="en",
+                currency="USD",
+                subscription_plan="discovery",
+                created_at=timezone.now(),
+            )
         self.user = UserRecord.objects.create(
             id=uuid4(),
             phone_number="+14155550123",
@@ -57,6 +77,10 @@ class TenantRouteIsolationTests(TestCase):
                 last_interaction_at=timezone.now(),
             )
         self.access_token = DjangoTokenService().issue_tokens(self.user.id)["accessToken"]
+        discovery = PlanDefinitionRecord.objects.get(code="discovery")
+        PlanEntitlementRecord.objects.filter(
+            plan=discovery, key="max_segments"
+        ).update(value=2)
 
     def test_user_can_read_and_write_only_with_the_assigned_merchant_scope(self):
         headers_a = self._headers(self.merchant_a)
@@ -122,6 +146,23 @@ class TenantRouteIsolationTests(TestCase):
                 self.assertEqual(response.status_code, 403, response.content)
 
         self.assertFalse(SegmentRecord.objects.filter(merchant_id=self.merchant_b).exists())
+
+    def test_billing_admin_routes_are_global_and_pricing_is_public(self):
+        for path, method in (
+            ("/api/v1/admin/plans/tenant-probe", "put"),
+            ("/api/v1/admin/plan-prices", "put"),
+        ):
+            with self.subTest(path=path):
+                response = getattr(self.client, method)(
+                    path,
+                    data="{}",
+                    content_type="application/json",
+                    **self._headers(self.merchant_b),
+                )
+                self.assertEqual(response.status_code, 403)
+        response = self.client.get("/api/v1/pricing?country=US")
+        self.assertNotEqual(response.status_code, 401)
+        self.assertNotEqual(response.status_code, 403)
 
     @classmethod
     def _permission_routes(cls, patterns, prefix=""):

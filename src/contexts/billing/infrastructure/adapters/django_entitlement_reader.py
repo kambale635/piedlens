@@ -1,8 +1,10 @@
 from uuid import UUID
 
+from django.utils import timezone
+
 from shared_kernel.ports import IEntitlementReader, IMerchantPlanReader
 
-from ..persistence.models import PlanDefinitionRecord
+from ..persistence.models import PlanDefinitionRecord, TrialRecord
 
 
 class DjangoEntitlementReader(IEntitlementReader):
@@ -12,6 +14,13 @@ class DjangoEntitlementReader(IEntitlementReader):
         self._merchant_plans = merchant_plans
 
     def entitlements_for(self, merchant_id: UUID) -> dict[str, object]:
+        active_trial = TrialRecord.objects.filter(
+            merchant_id=merchant_id,
+            starts_at__lte=timezone.now(),
+            ends_at__gt=timezone.now(),
+        ).first()
+        if active_trial is not None:
+            return self.entitlements_for_plan(active_trial.target_plan_code)
         plan_code = self._merchant_plans.plan_for(merchant_id)
         if plan_code is None:
             return {}

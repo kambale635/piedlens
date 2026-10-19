@@ -5,7 +5,14 @@ from ...application.ports.plan_admin_repository import (
     PlanAdminRecord,
     PlanPriceAdminRecord,
 )
-from .models import PlanDefinitionRecord, PlanEntitlementRecord, PlanPriceRecord
+from .models import (
+    CouponRecord,
+    PlanDefinitionRecord,
+    PlanEntitlementRecord,
+    PlanPriceRecord,
+    ReferralPolicyRecord,
+    TrialPolicyRecord,
+)
 
 
 class DjangoPlanAdminRepository(IPlanAdminRepository):
@@ -44,3 +51,63 @@ class DjangoPlanAdminRepository(IPlanAdminRepository):
             price.amount_minor,
             price.is_active,
         )
+
+    @transaction.atomic
+    def upsert_trial_policy(self, enabled, duration_days, target_plan_code, card_required):
+        policy, _ = TrialPolicyRecord.objects.update_or_create(
+            policy_key="default",
+            defaults={
+                "enabled": enabled,
+                "duration_days": duration_days,
+                "target_plan_code": target_plan_code,
+                "card_required": card_required,
+            },
+        )
+        return {
+            "enabled": policy.enabled,
+            "duration_days": policy.duration_days,
+            "target_plan_code": policy.target_plan_code,
+            "card_required": policy.card_required,
+        }
+
+    @transaction.atomic
+    def upsert_referral_policy(self, reward_percent, reward_duration_days, max_referrals):
+        policy, _ = ReferralPolicyRecord.objects.update_or_create(
+            policy_key="default",
+            defaults={
+                "reward_percent": reward_percent,
+                "reward_duration_days": reward_duration_days,
+                "max_referrals_per_merchant": max_referrals,
+            },
+        )
+        return {
+            "reward_percent": policy.reward_percent,
+            "reward_duration_days": policy.reward_duration_days,
+            "max_referrals_per_merchant": policy.max_referrals_per_merchant,
+        }
+
+    @transaction.atomic
+    def upsert_coupon(
+        self, code, discount_percent, duration_days, max_redemptions,
+        valid_from, valid_until, is_active,
+    ):
+        coupon, _ = CouponRecord.objects.update_or_create(
+            code=code,
+            defaults={
+                "discount_percent": discount_percent,
+                "duration_days": duration_days,
+                "max_redemptions": max_redemptions,
+                "valid_from": valid_from,
+                "valid_until": valid_until,
+                "is_active": is_active,
+            },
+        )
+        return {
+            "code": coupon.code,
+            "discount_percent": coupon.discount_percent,
+            "duration_days": coupon.duration_days,
+            "max_redemptions": coupon.max_redemptions,
+            "valid_from": coupon.valid_from,
+            "valid_until": coupon.valid_until,
+            "is_active": coupon.is_active,
+        }

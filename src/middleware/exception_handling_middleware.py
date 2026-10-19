@@ -37,7 +37,8 @@ class ExceptionHandlingMiddleware(MiddlewareMixin):
 		if isinstance(error, RequestDataTooBig):
 			status, code = 413, "REQUEST_TOO_LARGE"
 		elif isinstance(error, ResourceNotFoundException):
-			status, code = 404, "NOT_FOUND"
+			status = getattr(error, "status_code", 404)
+			code = getattr(error, "error_code", "NOT_FOUND")
 		elif isinstance(error, ValidationException):
 			status = getattr(error, "status_code", 400)
 			code = getattr(error, "error_code", "VALIDATION_ERROR")

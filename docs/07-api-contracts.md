@@ -121,6 +121,10 @@ Chaque erreur 4xx/5xx retourne un corps standard :
 - `GET /api/v1/pricing?country=US` (`@public_route`) → `{ country, plans: [{ code, prices: [{ country, currency, periodDays, amountMinor }], entitlements }] }`; pays exact prioritaire, puis pays `*`, sans conversion de devise.
 - `PUT /api/v1/admin/plans/{code}` (`plan.manage`, permission globale) : `{ active?, order?, entitlements? }` → définition et entitlements configurés.
 - `PUT /api/v1/admin/plan-prices` (`plan.manage`, permission globale) : `{ planCode, country, currency, periodDays, amountMinor, active? }` → prix explicite.
+- `POST /api/v1/trials` (`billing.trial.start`) : `{ cardProvided? }` → essai configuré, une fois par merchant.
+- `POST /api/v1/coupons/apply` (`billing.coupon.apply`) : `{ code }` → coupon validé et appliqué une fois.
+- `POST /api/v1/referrals/redeem` (`billing.referral.redeem`) : `{ referrerMerchantId }` → parrainage enregistré; récompense différée au premier paiement.
+- `PUT /api/v1/admin/trial-policy`, `PUT /api/v1/admin/referral-policy`, `PUT /api/v1/admin/coupons` (`plan.manage`, permission globale) modifient les policies et coupons.
 - Refus d'une fonctionnalité non incluse : HTTP 402 `{ errorCode: "PLAN_UPGRADE_REQUIRED", correlationId, missingEntitlement }`.
 
 ## Compléments : routes ajoutées après coup et permission de chaque route

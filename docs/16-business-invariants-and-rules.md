@@ -96,6 +96,9 @@ Discovery conserve l'export des données (INV-PLAN-02). Tout refus d'entitlement
 
 - **INV-PLAN-01** : tout contexte consommateur lit les limites d'un merchant exclusivement via `IEntitlementReader`; aucune lecture directe des tables Billing. Toute limite configurée dépassée retourne `402 PLAN_UPGRADE_REQUIRED` avec la clé d'entitlement manquante.
 - **INV-PLAN-02** : l'export des données reste autorisé pour tous les plans. `export_enabled` ne peut pas être désactivé par l'administration.
+- **INV-BILL-01** : un merchant ne peut commencer qu'un seul essai, même après expiration; l'accès d'essai cesse à `ends_at` sans suppression ni altération des données merchant.
+- **INV-BILL-02** : le même coupon ne peut être appliqué qu'une fois par merchant. Quota global, validité, redemption et `CouponRedeemed` sont atomiques dans Billing.
+- **INV-BILL-03** : aucun reward referral avant la première période payée du filleul; un seul reward par filleul, aucun auto-parrainage, et le plafond par parrain est configurable. Marqueur payé et `ReferralRewardGranted` sont idempotents/Outbox-atomiques.
 
 ## 9. Règles de sécurité et conformité (rappel consolidé)
 

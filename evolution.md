@@ -10,6 +10,13 @@ Mettre a jour ce journal a chaque etape importante.
 - Ajout de `GET /api/v1/pricing` (exact pays puis `*`, sans conversion) et administration `PUT /admin/plans/{code}`, `PUT /admin/plan-prices` sous `plan.manage`, journalisée par le middleware. Validation ciblée phase 1 : 39/39; pricing : 2/2; migration/architecture à revérifier avant commit.
 - Prochaine phase : contrats et implémentation essais, coupons, parrainages. La suite complète reste réservée à la clôture phase 4, sur PostgreSQL et Redis réels.
 
+## 2026-10-19 - Phase 2 Billing : essais, coupons et parrainage
+
+- Ajout de policies éditables `TrialPolicy` (seed provisoire 14 jours Starter sans carte) et `ReferralPolicy` (10%, 30 jours, plafond 10 filleuls/parrain), essais uniques, coupon usage limité/un même coupon une fois par merchant, referral anti-auto/anti-doublon et récompense au premier paiement uniquement.
+- `CouponRedeemed` et `ReferralRewardGranted` utilisent l'Outbox transactionnelle Billing; premier paiement et récompense sont idempotents. `IEntitlementReader` expose temporairement les entitlements du plan d'essai actif, puis le plan Identity à expiration sans mutation des données merchant.
+- Routes d'usage tenant-scopées et administration `plan.manage`; migration `billing.0002`/`0003`; isolation tenant, architecture et tests Billing ciblés 23/23, migrations à jour.
+- Prochaine phase : messagerie sortante `manual_link`/`api_send`, coûts estimés, tarifs Meta configurables et plafonds mensuels. Suite complète différée jusqu'à phase 4.
+
 ## 2026-10-18 - Etape 3a terminee : canaux extensibles
 
 - Etat initial reel en cinq lignes : `ChannelConfigRecord` existait sans migration ni seed; le registre de capacites existait mais le composition root ignorait le choix d'adaptateur; seules les variables WhatsApp etaient lues; aucune suite de contrat reutilisable n'existait; `IChannelAvailability` etait declare deux fois. Le test de pipeline `fake_channel` etait deja present.

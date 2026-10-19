@@ -31,11 +31,14 @@ class Command(BaseCommand):
                 "segment.bulk_message",
                 "backup.read",
                 "backup.restore",
+                "billing.trial.start",
+                "billing.coupon.apply",
+                "billing.referral.redeem",
             }
         )
         for name, grants in (
             ("Owner", permissions),
-            ("Staff", staff_permissions),
+                ("Staff", staff_permissions),
             ("PlatformAdmin", permissions),
         ):
             existing = repository.find_role_by_name(name)

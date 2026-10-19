@@ -77,6 +77,45 @@
 
 Les prix et entitlements semés pour Discovery, Starter, Pro et Agency sont des valeurs provisoires, configurables dans Billing; voir la section 8 de `16-business-invariants-and-rules.md`.
 
+### `StartTrialUseCase`
+- **Mode d'entrée** : `POST /api/v1/trials`, permission `billing.trial.start`, tenant courant
+- **Entrée** : `{ merchantId: uuid (depuis tenant), cardProvided?: boolean }`
+- **Sortie** : `{ merchant_id, plan_code, starts_at, ends_at }`
+- **Préconditions** : policy activée, plan cible actif, carte fournie si requise, aucun essai passé pour ce merchant.
+- **Postconditions** : enregistre un essai unique. À expiration, les entitlements reviennent au plan courant (Discovery par défaut); aucune donnée merchant n'est supprimée.
+- **Erreurs** : `400 TRIAL_UNAVAILABLE`, `400 TRIAL_CARD_REQUIRED`
+- **Référence** : INV-BILL-01.
+
+### `ApplyCouponUseCase`
+- **Mode d'entrée** : `POST /api/v1/coupons/apply`, permission `billing.coupon.apply`, tenant courant
+- **Entrée** : `{ merchantId: uuid (depuis tenant), code: string }`
+- **Sortie** : `{ coupon_code, discount_percent, redeemed_at, expires_at }`
+- **Préconditions** : code actif, fenêtre de validité ouverte, quota global non atteint, merchant n'a pas déjà utilisé ce même coupon.
+- **Postconditions** : incrémente l'usage, enregistre l'application et publie `CouponRedeemed` dans l'Outbox Billing atomiquement.
+- **Erreurs** : `404 COUPON_NOT_FOUND`, `400 COUPON_NOT_VALID`, `400 COUPON_ALREADY_USED`
+- **Référence** : INV-BILL-02.
+
+### `RedeemReferralUseCase`
+- **Mode d'entrée** : `POST /api/v1/referrals/redeem`, permission `billing.referral.redeem`, tenant courant
+- **Entrée** : `{ referredMerchantId: uuid (depuis tenant), referrerMerchantId: uuid }`
+- **Sortie** : `{ referrer_merchant_id, referred_merchant_id, reward_percent, reward_duration_days }`
+- **Préconditions** : pas d'auto-parrainage, pas de parrainage préalable du filleul, limite configurable du parrain non atteinte.
+- **Postconditions** : fige la récompense configurée; aucun crédit n'est accordé à cette étape.
+- **Erreurs** : `400 REFERRAL_NOT_VALID`, `400 REFERRAL_ALREADY_REDEEMED`, `400 REFERRAL_LIMIT_REACHED`
+- **Référence** : INV-BILL-03.
+
+### `RecordFirstPaidPeriodUseCase`
+- **Déclencheur** : confirmation interne de paiement, appelée une seule fois par la première période payée du merchant.
+- **Entrée** : `{ merchantId: uuid, paidAt: datetime }`
+- **Sortie** : `{ merchant_id, first_paid_period, referral_reward_granted }`
+- **Postconditions** : idempotent par merchant; seul le premier paiement d'un filleul parrainé fixe le reward et publie `ReferralRewardGranted` via Outbox Billing atomiquement.
+- **Référence** : INV-BILL-03, INV-TR-02/03.
+
+### `UpsertTrialPolicyUseCase`, `UpsertReferralPolicyUseCase`, `UpsertCouponUseCase`
+- **Mode d'entrée** : routes admin `PUT /api/v1/admin/trial-policy`, `PUT /api/v1/admin/referral-policy`, `PUT /api/v1/admin/coupons`, permission globale `plan.manage`.
+- **Postconditions** : mettent à jour les durées, plan cible, exigence de carte, récompense, limite par parrain et définitions de coupons sans redéploiement; l'audit HTTP metadata-only est produit par les middlewares.
+- **Valeurs seed provisoires** : essai Starter de 14 jours sans carte; parrainage 10% pendant 30 jours, au plus 10 filleuls par parrain. Toutes sont administrables.
+
 ---
 
 ## Contexte : Access Control (détails : `20-context-access-control.md`)

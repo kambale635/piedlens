@@ -5,6 +5,8 @@ from contexts.billing.infrastructure.persistence.models import (
     PlanDefinitionRecord,
     PlanEntitlementRecord,
     PlanPriceRecord,
+    ReferralPolicyRecord,
+    TrialPolicyRecord,
 )
 
 
@@ -90,6 +92,34 @@ class Command(BaseCommand):
         force = options["force"]
         self._validate_existing_data()
         with transaction.atomic():
+            trial_policy, trial_created = TrialPolicyRecord.objects.get_or_create(
+                policy_key="default",
+                defaults={
+                    "enabled": True,
+                    "duration_days": 14,
+                    "target_plan_code": "starter",
+                    "card_required": False,
+                },
+            )
+            referral_policy, referral_created = ReferralPolicyRecord.objects.get_or_create(
+                policy_key="default",
+                defaults={
+                    "reward_percent": 10,
+                    "reward_duration_days": 30,
+                    "max_referrals_per_merchant": 10,
+                },
+            )
+            if force and not trial_created:
+                trial_policy.enabled = True
+                trial_policy.duration_days = 14
+                trial_policy.target_plan_code = "starter"
+                trial_policy.card_required = False
+                trial_policy.save()
+            if force and not referral_created:
+                referral_policy.reward_percent = 10
+                referral_policy.reward_duration_days = 30
+                referral_policy.max_referrals_per_merchant = 10
+                referral_policy.save()
             for code, data in PLAN_SEED.items():
                 plan, created = PlanDefinitionRecord.objects.get_or_create(
                     code=code,

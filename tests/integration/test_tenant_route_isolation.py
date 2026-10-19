@@ -151,6 +151,9 @@ class TenantRouteIsolationTests(TestCase):
         for path, method in (
             ("/api/v1/admin/plans/tenant-probe", "put"),
             ("/api/v1/admin/plan-prices", "put"),
+            ("/api/v1/admin/trial-policy", "put"),
+            ("/api/v1/admin/referral-policy", "put"),
+            ("/api/v1/admin/coupons", "put"),
         ):
             with self.subTest(path=path):
                 response = getattr(self.client, method)(

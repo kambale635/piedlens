@@ -31,12 +31,6 @@ class Command(BaseCommand):
                 "segment.bulk_message",
                 "backup.read",
                 "backup.restore",
-                "billing.trial.start",
-                "billing.coupon.apply",
-                "billing.referral.redeem",
-                "outbound.estimate",
-                "outbound.usage.read",
-                "plan.manage",
             }
         )
         for name, grants in (

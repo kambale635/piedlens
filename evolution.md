@@ -32,6 +32,12 @@ Mettre a jour ce journal a chaque etape importante.
 - Validation locale : le test est collecté puis ignoré sous SQLite (row locks indisponibles). PostgreSQL local répond sur 5432 mais refuse la connexion sans authentification; aucune preuve réelle de concurrence n'est revendiquée.
 - Prochaine sous-étape : suites de sécurité locales, puis exécution du test quota avec PostgreSQL authentifié en CI.
 
+## 2026-10-23 - Vérifications sécurité et rôle Staff
+
+- Le seed Staff accordait par erreur les permissions Billing, dont `plan.manage`, contrairement au rôle décrit dans `docs/20-context-access-control.md`; ces privilèges ont été retirés.
+- Suites validées : Access Control 4/4; secrets/Identity/tokens/webhook 18/18; audit/HTTP/isolation/routes 12 réussis, 1 test SQL PostgreSQL ignoré sous SQLite.
+- L'intégration PostgreSQL native et les scanners CI restent à observer dans un environnement authentifié/configuré.
+
 ## 2026-10-19 - Phase 3 : messagerie sortante et coûts configurables
 
 - CRM stocke le mode et la catégorie de campagne. `manual_link` est le défaut WhatsApp, génère `wa.me` seulement pour un numéro international validé, et n'appelle jamais le sender. Le worker des campagnes et des relances journalise les propositions sans quota.

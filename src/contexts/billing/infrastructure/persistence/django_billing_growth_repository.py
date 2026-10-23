@@ -107,9 +107,14 @@ class DjangoBillingGrowthRepository:
         )
         return Referral(referrer_merchant_id, referred_merchant_id, record.reward_percent, record.reward_duration_days)
 
-    def create_first_paid_period(self, merchant_id, paid_at):
+    def create_first_paid_period(self, merchant_id, paid_at, paid_amount_minor=None, currency=None):
         _, created = PaidPeriodRecord.objects.get_or_create(
-            merchant_id=merchant_id, defaults={"paid_at": paid_at}
+            merchant_id=merchant_id,
+            defaults={
+                "paid_at": paid_at,
+                "amount_minor": paid_amount_minor,
+                "currency": currency,
+            },
         )
         return created
 

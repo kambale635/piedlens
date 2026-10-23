@@ -7,6 +7,7 @@ from .outbound_cost_estimator import IOutboundCostEstimator
 from .outbound_usage_recorder import IOutboundUsageRecorder
 from .manual_message_link_builder import IManualMessageLinkBuilder
 from .plan_catalog_reader import IPlanCatalogReader
+from .value_report_readers import IOrderValueReportReader, IPaidPeriodPriceReader
 
 
 class IConnectionUsageReader(Protocol):

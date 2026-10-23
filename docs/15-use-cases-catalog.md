@@ -133,11 +133,20 @@ Les prix et entitlements semés pour Discovery, Starter, Pro et Agency sont des 
 - **Mode d'entrée** : `GET /api/v1/outbound/usage`, permission `outbound.usage.read`
 - **Sortie** : usages API du merchant courant par catégorie pour le mois courant; les liens manuels sont exclus.
 
+### `GenerateValueReportUseCase`
+- **Mode d'entrée** : `GET /api/v1/reports/value`, permission `outbound.usage.read`
+- **Entrée** : `{ merchantId: uuid }` (dérivé du tenant courant)
+- **Sortie** : `{ merchantId, country, currency, month, totalAmountMinor, unpricedMessageCount, estimateIncomplete, items: [{ category, messages, priced, unitAmountMinor?, amountMinor?, currency }] }`
+- **Postconditions** : agrège les usages API du mois courant et réévalue chaque catégorie au tarif actif configuré pour le pays/devise. Une catégorie sans tarif est exclue du total estimé, marquée `priced=false`, comptée dans `unpricedMessageCount` et active `estimateIncomplete=true`; elle ne peut jamais apparaître comme un coût nul silencieux.
+- **Erreurs** : `400 VALIDATION_ERROR` si le merchant n'a pas de pays configuré.
+
 ### `UpsertOutboundRateUseCase`
 - **Mode d'entrée** : `PUT /api/v1/admin/outbound-rates`, permission globale `plan.manage`
 - **Entrée** : `{ country, category, currency, amountMinor, validFrom, validUntil?, active? }`
 - **Postconditions** : administre le tarif Meta estimatif avec sa fenêtre de validité; les vrais frais Meta restent facturés directement au vendeur par Meta.
 - **Valeurs par défaut** : aucun tarif n'est seedé faute de grille Meta vérifiée par pays/catégorie; l'estimation échoue clairement tant qu'une ligne valable n'est pas configurée.
+
+**Règle de tarif manquant** : avant un envoi `api_send`, absence de tarif actif pour pays/catégorie/devise = `422 OUTBOUND_RATE_MISSING`; la réservation de quota n'est pas consommée. Pour le rapport mensuel, les catégories sans tarif sont exclues de l'estimation mais signalées par `unpricedMessageCount` et `estimateIncomplete`.
 
 ---
 

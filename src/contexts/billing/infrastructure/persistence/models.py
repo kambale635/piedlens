@@ -135,6 +135,8 @@ class ReferralRecord(models.Model):
 class PaidPeriodRecord(models.Model):
     merchant_id = models.UUIDField(unique=True)
     paid_at = models.DateTimeField()
+    amount_minor = models.PositiveBigIntegerField(null=True, blank=True)
+    currency = models.CharField(max_length=3, null=True, blank=True)
 
     class Meta:
         db_table = "billing_paid_periods"

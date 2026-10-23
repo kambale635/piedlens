@@ -4,7 +4,11 @@ import re
 from urllib.parse import quote
 from uuid import UUID, uuid4
 
-from shared_kernel.application_exceptions import PlanUpgradeRequiredException, ValidationException
+from shared_kernel.application_exceptions import (
+    OutboundRateMissingException,
+    PlanUpgradeRequiredException,
+    ValidationException,
+)
 from shared_kernel.ports import (
     IEntitlementReader,
     IMerchantCurrencyReader,
@@ -157,7 +161,9 @@ class SendBulkMessageUseCase:
                     len(members),
                 )
                 if cost_estimate is None:
-                    raise ValidationException("Outbound message rate is not configured.")
+                    raise OutboundRateMissingException(
+                        "No active outbound rate is configured for this message."
+                    )
                 if category == "marketing" and confirmed_estimate != cost_estimate:
                     raise MarketingConfirmationRequiredException(
                         "Confirm the current estimated cost before sending marketing messages."

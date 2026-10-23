@@ -72,6 +72,7 @@ Les valeurs effectives sont stockées dans Billing et lues par les autres contex
 - **INV-BILL-03** : la récompense referral est accordée au seul premier paiement du filleul, une fois; pas d'auto-parrainage et limite par parrain configurable.
 - **INV-BILL-04** : `manual_link` ne fait aucun appel API et ne consomme aucun quota. `api_send` réserve idempotemment son quota mensuel par destinataire; dépassement retourne `422 OUTBOUND_CAP_REACHED`.
 - **INV-BILL-05** : les tarifs outbound sont configurés par pays, catégorie, devise et validité; aucune conversion automatique. L'estimation est indicative, Meta facture directement le vendeur et jamais Billing.
+- **INV-BILL-06** : un `api_send` sans tarif actif correspondant au pays/catégorie/devise est refusé avec `422 OUTBOUND_RATE_MISSING` avant toute réservation de quota. Le rapport mensuel peut exclure les catégories non tarifées de son total uniquement s'il fournit `unpricedMessageCount` et `estimateIncomplete=true`; jamais de zéro silencieux.
 
 ## 9. Règles de sécurité et conformité (rappel consolidé)
 

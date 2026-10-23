@@ -15,7 +15,10 @@ from contexts.crm.domain.entities.contact import Contact
 from contexts.crm.domain.entities.segment import CRMSegment
 from contexts.crm.domain.value_objects.segment_rule import SegmentRule
 from shared_kernel.value_objects.money import Money
-from shared_kernel.application_exceptions import PlanUpgradeRequiredException
+from shared_kernel.application_exceptions import (
+    OutboundRateMissingException,
+    PlanUpgradeRequiredException,
+)
 
 
 class InMemorySegmentRepository:
@@ -151,7 +154,12 @@ class InMemoryOutboundUsage:
 
 
 class InMemoryCostEstimator:
+    def __init__(self):
+        self.missing_rate = False
+
     def estimate(self, country, currency, category, count):
+        if self.missing_rate:
+            return None
         return {
             "unitAmountMinor": 3,
             "amountMinor": 3 * count,
@@ -211,6 +219,7 @@ class SendBulkMessageUseCaseTests(unittest.TestCase):
         self.outbox = InMemoryOutbox()
         self.unit_of_work = InMemoryUnitOfWork()
         self.outbound_usage = InMemoryOutboundUsage()
+        self.cost_estimator = InMemoryCostEstimator()
         self.use_case = SendBulkMessageUseCase(
             segment_repository=InMemorySegmentRepository(self.segment),
             contact_repository=InMemoryContactRepository(self.contacts),
@@ -218,7 +227,7 @@ class SendBulkMessageUseCaseTests(unittest.TestCase):
             unit_of_work=self.unit_of_work,
             outbox=self.outbox,
             entitlements=InMemoryEntitlements(),
-            cost_estimator=InMemoryCostEstimator(),
+            cost_estimator=self.cost_estimator,
             merchant_country_reader=FixedMerchantCountry(),
             merchant_currency_reader=FixedMerchantCurrency(),
         )
@@ -273,6 +282,9 @@ class SendBulkMessageUseCaseTests(unittest.TestCase):
             unit_of_work=self.unit_of_work,
             outbox=self.outbox,
             outbound_usage=self.outbound_usage,
+            outbound_cost_estimator=self.cost_estimator,
+            merchant_country_reader=FixedMerchantCountry(),
+            merchant_currency_reader=FixedMerchantCurrency(),
         )
 
         result = worker.execute(queue_event.event_id, queued.bulk_message_log_id)
@@ -328,6 +340,24 @@ class SendBulkMessageUseCaseTests(unittest.TestCase):
         self.assertEqual(result.cost_estimate, estimate)
         self.assertEqual(self.outbound_usage.reservations, [])
 
+    def test_api_send_without_active_rate_returns_422_before_quota_or_campaign(self):
+        self.cost_estimator.missing_rate = True
+
+        with self.assertRaises(OutboundRateMissingException) as raised:
+            self.use_case.execute(
+                self.segment.id,
+                "Utility notice",
+                "whatsapp",
+                self.merchant_id,
+                delivery_mode="api_send",
+                category="utility",
+            )
+
+        self.assertEqual(raised.exception.status_code, 422)
+        self.assertEqual(raised.exception.error_code, "OUTBOUND_RATE_MISSING")
+        self.assertEqual(self.outbound_usage.reservations, [])
+        self.assertEqual(self.campaign_repository.campaigns, {})
+
     def test_worker_sends_recipients_and_finalizes_outbox_once(self):
         queued = self.use_case.execute(
             segment_id=self.segment.id,
@@ -347,6 +377,9 @@ class SendBulkMessageUseCaseTests(unittest.TestCase):
             unit_of_work=self.unit_of_work,
             outbox=self.outbox,
             outbound_usage=self.outbound_usage,
+            outbound_cost_estimator=self.cost_estimator,
+            merchant_country_reader=FixedMerchantCountry(),
+            merchant_currency_reader=FixedMerchantCurrency(),
         )
 
         result = worker.execute(queue_event.event_id, queued.bulk_message_log_id)
@@ -378,6 +411,9 @@ class SendBulkMessageUseCaseTests(unittest.TestCase):
             unit_of_work=self.unit_of_work,
             outbox=self.outbox,
             outbound_usage=self.outbound_usage,
+            outbound_cost_estimator=self.cost_estimator,
+            merchant_country_reader=FixedMerchantCountry(),
+            merchant_currency_reader=FixedMerchantCurrency(),
         )
 
         first = worker.execute(queue_event.event_id, queued.bulk_message_log_id)

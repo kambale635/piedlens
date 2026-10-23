@@ -2,8 +2,16 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from shared_kernel.application_exceptions import OutboundQuotaExceededException
-from shared_kernel.ports import IOutboundUsageRecorder
+from shared_kernel.application_exceptions import (
+	OutboundQuotaExceededException,
+	OutboundRateMissingException,
+)
+from shared_kernel.ports import (
+	IOutboundCostEstimator,
+	IMerchantCountryReader,
+	IMerchantCurrencyReader,
+	IOutboundUsageRecorder,
+)
 
 from ...domain.entities.bulk_message_campaign import BulkMessageCampaignStatus
 from ...domain.value_objects.contact_status import ContactStatus
@@ -80,6 +88,9 @@ class ProcessBulkMessageCampaignUseCase:
 		unit_of_work: ICRMUnitOfWork,
 		outbox: ICRMOutbox,
 		outbound_usage: IOutboundUsageRecorder,
+		outbound_cost_estimator: IOutboundCostEstimator,
+		merchant_country_reader: IMerchantCountryReader,
+		merchant_currency_reader: IMerchantCurrencyReader,
 	) -> None:
 		"""Receive campaign, Contact, idempotency, delivery, and transaction ports."""
 		self._campaign_repository = campaign_repository
@@ -90,6 +101,9 @@ class ProcessBulkMessageCampaignUseCase:
 		self._unit_of_work = unit_of_work
 		self._outbox = outbox
 		self._outbound_usage = outbound_usage
+		self._outbound_cost_estimator = outbound_cost_estimator
+		self._merchant_country_reader = merchant_country_reader
+		self._merchant_currency_reader = merchant_currency_reader
 
 	def execute(
 		self,
@@ -119,6 +133,19 @@ class ProcessBulkMessageCampaignUseCase:
 				delivery_result = BulkMessageDeliveryResult(False, "CONTACT_MERGED")
 			else:
 				idempotency_key = f"{campaign.id}:{contact_id}"
+				country = self._merchant_country_reader.country_code_for(
+					campaign.merchant_id
+				)
+				currency = self._merchant_currency_reader.currency_for(
+					campaign.merchant_id
+				)
+				rate = self._outbound_cost_estimator.estimate(
+					country, currency, campaign.category, 1
+				)
+				if rate is None:
+					raise OutboundRateMissingException(
+						"No active outbound rate is configured for this message."
+					)
 				try:
 					self._outbound_usage.reserve(
 						campaign.merchant_id, campaign.category, idempotency_key

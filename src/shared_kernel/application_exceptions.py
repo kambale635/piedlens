@@ -26,3 +26,10 @@ class OutboundQuotaExceededException(ApplicationException):
 
     status_code = 422
     error_code = "OUTBOUND_CAP_REACHED"
+
+
+class OutboundRateMissingException(ApplicationException):
+    """Reject an API send when no active rate exists for country/category/currency."""
+
+    status_code = 422
+    error_code = "OUTBOUND_RATE_MISSING"

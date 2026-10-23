@@ -21,12 +21,29 @@ class RecordFirstPaidPeriodUseCase:
         self._unit_of_work: IBillingUnitOfWork = unit_of_work
         self._outbox: IBillingOutbox = outbox
 
-    def execute(self, merchant_id: UUID, paid_at: datetime) -> RecordFirstPaidPeriodResult:
+    def execute(
+        self,
+        merchant_id: UUID,
+        paid_at: datetime,
+        paid_amount_minor: int | None = None,
+        currency: str | None = None,
+    ) -> RecordFirstPaidPeriodResult:
         """Record payment and reward event atomically; duplicate payment notifications have no second effect."""
+        if paid_amount_minor is not None and (
+            not isinstance(paid_amount_minor, int)
+            or isinstance(paid_amount_minor, bool)
+            or paid_amount_minor < 0
+            or not currency
+            or len(currency) != 3
+            or not currency.isalpha()
+        ):
+            raise ValueError("Actual paid amount requires non-negative minor units and an ISO currency.")
         granted = False
         with self._unit_of_work:
             self._repository.lock_merchant(merchant_id)
-            first_paid_period = self._repository.create_first_paid_period(merchant_id, paid_at)
+            first_paid_period = self._repository.create_first_paid_period(
+                merchant_id, paid_at, paid_amount_minor, currency.upper() if currency else None
+            )
             if first_paid_period:
                 referral = self._repository.mark_referral_rewarded(merchant_id, paid_at)
                 if referral is not None:

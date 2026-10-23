@@ -177,7 +177,14 @@ from contexts.billing.infrastructure.adapters.django_plan_catalog_reader import 
     DjangoPlanCatalogReader,
 )
 from contexts.billing.infrastructure.adapters.django_outbound_services import (
+    DjangoMerchantOutboundUsageReader,
     DjangoOutboundCostEstimator,
+)
+from contexts.billing.application.use_cases.generate_value_report_use_case import (
+    GenerateValueReportUseCase,
+)
+from contexts.identity.infrastructure.adapters.django_merchant_country_reader import (
+    DjangoMerchantCountryReader,
 )
 from contexts.billing.application.use_cases.estimate_outbound_cost_use_case import (
     EstimateOutboundCostUseCase,
@@ -355,6 +362,16 @@ from contexts.platform_connectors.infrastructure.adapters.django_connection_cons
 
 
 class ApplicationContainer:
+    @staticmethod
+    def generate_billing_value_report() -> GenerateValueReportUseCase:
+        """Assemble Billing's report with Identity read ports at the system boundary."""
+        return GenerateValueReportUseCase(
+            DjangoMerchantCountryReader(),
+            DjangoMerchantCurrencyReader(),
+            DjangoMerchantOutboundUsageReader(),
+            DjangoOutboundCostEstimator(),
+        )
+
     @staticmethod
     def estimate_outbound_cost() -> EstimateOutboundCostUseCase:
         """Compose Billing's estimator with Identity's country reader at the system boundary."""
@@ -699,6 +716,9 @@ class ApplicationContainer:
             unit_of_work=DjangoCRMUnitOfWork(),
             outbox=DjangoCRMOutbox(),
             outbound_usage=ApplicationContainer._billing_outbound_usage(),
+            outbound_cost_estimator=DjangoOutboundCostEstimator(),
+            merchant_country_reader=DjangoMerchantCountryReader(),
+            merchant_currency_reader=DjangoMerchantCurrencyReader(),
         )
 
     @staticmethod

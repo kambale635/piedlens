@@ -127,9 +127,11 @@ Chaque erreur 4xx/5xx retourne un corps standard :
 - `PUT /api/v1/admin/trial-policy`, `PUT /api/v1/admin/referral-policy`, `PUT /api/v1/admin/coupons` (`plan.manage`, permission globale) modifient les policies et coupons.
 - `POST /api/v1/outbound/estimate` (`outbound.estimate`) : `{ category, count? }` → estimation en unités mineures, sans conversion; `chargeProcessor: "meta_direct"` indique que Meta facture le vendeur.
 - `GET /api/v1/outbound/usage` (`outbound.usage.read`) → compteurs API du mois courant par catégorie; les liens manuels ne consomment pas de quota.
+- `GET /api/v1/reports/value` (`outbound.usage.read`) → `{ merchantId, country, currency, month, totalAmountMinor, unpricedMessageCount, estimateIncomplete, items: [{ category, messages, priced, unitAmountMinor?, amountMinor?, currency }] }` ; estimation incomplète explicitement signalée quand il manque un tarif.
 - `PUT /api/v1/admin/outbound-rates` (`plan.manage`, permission globale) : `{ country, category, currency, amountMinor, validFrom, validUntil?, active? }` → tarif configuré sans redéploiement.
 - `POST /api/v1/segments/{id}/bulk-message` accepte `{ deliveryMode?: "manual_link"|"api_send", category, marketingConfirmed?, confirmedEstimate? }`. Le défaut WhatsApp est `manual_link` et retourne les liens sans appel API. `api_send` met en file et réserve le quota au worker; Marketing exige la confirmation de l'estimation courante.
 - Aucun tarif Meta n'est seedé en l'absence d'une grille pays/catégorie vérifiée; un tarif absent donne `OUTBOUND_RATE_NOT_CONFIGURED`. Billing n'encaisse jamais les frais Meta.
+- Un envoi `api_send` sans tarif actif retourne `422 OUTBOUND_RATE_MISSING` avant réservation de quota; les catégories non tarifées du rapport mensuel sont explicitement comptabilisées via `unpricedMessageCount` et `estimateIncomplete`.
 - Refus d'une fonctionnalité non incluse : HTTP 402 `{ errorCode: "PLAN_UPGRADE_REQUIRED", correlationId, missingEntitlement }`.
 
 ## Compléments : routes ajoutées après coup et permission de chaque route

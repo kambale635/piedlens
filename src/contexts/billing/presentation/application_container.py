@@ -16,6 +16,9 @@ from contexts.billing.application.use_cases.upsert_coupon_use_case import Upsert
 from contexts.billing.application.use_cases.estimate_outbound_cost_use_case import (
     EstimateOutboundCostUseCase,
 )
+from contexts.billing.application.use_cases.generate_value_report_use_case import (
+    GenerateValueReportUseCase,
+)
 from contexts.billing.application.use_cases.upsert_outbound_rate_use_case import (
     UpsertOutboundRateUseCase,
 )
@@ -116,6 +119,18 @@ class BillingContainer:
     @staticmethod
     def upsert_outbound_rate() -> UpsertOutboundRateUseCase:
         return UpsertOutboundRateUseCase(DjangoPlanAdminRepository())
+
+    @staticmethod
+    def generate_value_report(
+        merchant_country_reader,
+        merchant_currency_reader,
+    ) -> GenerateValueReportUseCase:
+        return GenerateValueReportUseCase(
+            merchant_country_reader,
+            merchant_currency_reader,
+            DjangoMerchantOutboundUsageReader(),
+            DjangoOutboundCostEstimator(),
+        )
 
     @staticmethod
     def outbound_usage_recorder() -> DjangoOutboundUsageRecorder:

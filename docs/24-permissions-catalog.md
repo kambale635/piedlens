@@ -27,6 +27,6 @@ Catalogue extrait des vues enregistrées dans le resolver Django, via leur attri
 | `billing.coupon.apply` | Billing | `POST /api/v1/coupons/apply` |
 | `billing.referral.redeem` | Billing | `POST /api/v1/referrals/redeem` |
 | `outbound.estimate` | Billing | `POST /api/v1/outbound/estimate` |
-| `outbound.usage.read` | Billing | `GET /api/v1/outbound/usage` |
+| `outbound.usage.read` | Billing | `GET /api/v1/outbound/usage`, `GET /api/v1/reports/value` |
 
 Total : 23 permissions, extraites du resolver Django. Les routes `GET /api/v1/pricing` et webhooks documentés ont une politique publique explicite. Les routes publiques Identity et `POST /api/v1/merchants` ont une politique publique explicite. Les use cases déclenchés par événement ou job n'ont pas de route. Toute route non marquée `@requires_permission` ou `@public_route` est refusée par défaut.

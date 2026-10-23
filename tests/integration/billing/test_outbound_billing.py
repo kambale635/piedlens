@@ -11,22 +11,17 @@ from contexts.billing.application.use_cases.estimate_outbound_cost_use_case impo
     EstimateOutboundCostUseCase,
     OutboundRateNotConfiguredException,
 )
-from contexts.billing.application.use_cases.upsert_outbound_rate_use_case import (
-    UpsertOutboundRateUseCase,
+from contexts.billing.application.use_cases.generate_value_report_use_case import (
+    GenerateValueReportUseCase,
 )
 from contexts.billing.application.use_cases.upsert_outbound_rate_use_case import (
     UpsertOutboundRateUseCase,
-)
-from contexts.billing.application.use_cases.upsert_outbound_rate_use_case import (
-    UpsertOutboundRateUseCase,
-)
-from contexts.billing.infrastructure.persistence.django_plan_admin_repository import (
-    DjangoPlanAdminRepository,
 )
 from contexts.identity.infrastructure.adapters.django_merchant_country_reader import (
     DjangoMerchantCountryReader,
 )
 from contexts.billing.infrastructure.adapters.django_outbound_services import (
+    DjangoMerchantOutboundUsageReader,
     DjangoOutboundCostEstimator,
     DjangoOutboundUsageRecorder,
 )
@@ -42,9 +37,6 @@ from contexts.billing.infrastructure.persistence.models import (
     OutboundRateRecord,
     PlanDefinitionRecord,
     PlanEntitlementRecord,
-)
-from contexts.billing.infrastructure.persistence.django_plan_admin_repository import (
-    DjangoPlanAdminRepository,
 )
 from contexts.billing.infrastructure.persistence.django_plan_admin_repository import (
     DjangoPlanAdminRepository,
@@ -175,6 +167,46 @@ class OutboundBillingTests(TestCase):
             ).count(),
             2,
         )
+
+    def test_value_report_marks_unpriced_messages_and_flags_incomplete_estimate(self):
+        OutboundRateRecord.objects.create(
+            country="US",
+            category="utility",
+            currency="USD",
+            amount_minor=2,
+            valid_from=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            valid_until=None,
+            is_active=True,
+        )
+        OutboundMessageUsageRecord.objects.create(
+            merchant_id=self.merchant_id,
+            month=datetime(2026, 10, 1, tzinfo=timezone.utc).date(),
+            category="utility",
+            count=3,
+        )
+        OutboundMessageUsageRecord.objects.create(
+            merchant_id=self.merchant_id,
+            month=datetime(2026, 10, 1, tzinfo=timezone.utc).date(),
+            category="marketing",
+            count=2,
+        )
+
+        result = GenerateValueReportUseCase(
+            DjangoMerchantCountryReader(),
+            DjangoMerchantCurrencyReader(),
+            DjangoMerchantOutboundUsageReader(),
+            DjangoOutboundCostEstimator(),
+        ).execute(self.merchant_id)
+
+        self.assertEqual(result.country, "US")
+        self.assertEqual(result.currency, "USD")
+        self.assertEqual(result.total_amount_minor, 6)
+        self.assertEqual(result.unpriced_message_count, 2)
+        self.assertTrue(result.estimate_incomplete)
+        self.assertEqual(result.items[0]["category"], "marketing")
+        self.assertFalse(result.items[0]["priced"])
+        self.assertEqual(result.items[1]["category"], "utility")
+        self.assertEqual(result.items[1]["amountMinor"], 6)
 
     def test_outbound_estimate_and_usage_routes_are_tenant_scoped(self):
         from contexts.access_control.infrastructure.persistence.models import (

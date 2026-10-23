@@ -14,6 +14,7 @@ urlpatterns = [
     path("admin/outbound-rates", views.upsert_outbound_rate, name="billing-upsert-outbound-rate"),
     path("outbound/estimate", views.estimate_outbound, name="billing-estimate-outbound"),
     path("outbound/usage", views.outbound_usage, name="billing-outbound-usage"),
+    path("reports/value", views.value_report, name="billing-value-report"),
     path("admin/plans/<str:code>", views.upsert_plan, name="billing-upsert-plan"),
     path("admin/plan-prices", views.upsert_plan_price, name="billing-upsert-plan-price"),
 ]

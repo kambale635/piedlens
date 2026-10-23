@@ -142,6 +142,15 @@ def outbound_usage(request):
     )
 
 
+@requires_permission("outbound.usage.read")
+@require_http_methods(["GET"])
+def value_report(request):
+    result = ApplicationContainer.generate_billing_value_report().execute(
+        request.merchant_id
+    )
+    return JsonResponse(result.__dict__, encoder=DjangoJSONEncoder)
+
+
 @csrf_exempt
 @requires_global_permission("plan.manage")
 @require_http_methods(["PUT"])

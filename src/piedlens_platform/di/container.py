@@ -510,7 +510,6 @@ class ApplicationContainer:
             unit_of_work=DjangoOrderDetectionUnitOfWork(),
             outbox=DjangoOrderDetectionOutbox(),
             clock=SystemClock(),
-            entitlements=ApplicationContainer._billing_entitlements(),
         )
 
     @staticmethod

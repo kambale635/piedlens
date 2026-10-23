@@ -19,6 +19,13 @@ Mettre a jour ce journal a chaque etape importante.
 - Validation : test ciblé `test_merchant_owner_cannot_use_global_plan_manage_permission` réussi (403 attendu).
 - Prochaine sous-étape : concurrence du quota sur PostgreSQL réel; SQLite ne valide pas `select_for_update`.
 
+## 2026-10-23 - E2E paiement, livraison et agrégation CRM
+
+- Le parcours E2E existant couvre maintenant les PATCH statut `paid_not_delivered` puis `paid_and_delivered`, le relais de chaque Outbox via Redis et l'agrégation du montant/historique CRM uniquement à la livraison.
+- Le scénario a révélé un argument `entitlements` surnuméraire dans le wiring `UpdateOrderStatusUseCase`, corrigé dans le composition root.
+- Validation : `tests.integration.test_e2e_message_to_dormant_order` réussi avec SQLite et Redis local.
+- Prochaine sous-étape : test concurrent du quota sur PostgreSQL; PostgreSQL local accepte les connexions TCP mais l'authentification est indisponible sans mot de passe.
+
 ## 2026-10-19 - Phase 3 : messagerie sortante et coûts configurables
 
 - CRM stocke le mode et la catégorie de campagne. `manual_link` est le défaut WhatsApp, génère `wa.me` seulement pour un numéro international validé, et n'appelle jamais le sender. Le worker des campagnes et des relances journalise les propositions sans quota.

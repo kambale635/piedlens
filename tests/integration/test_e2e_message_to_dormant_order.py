@@ -7,8 +7,10 @@ from uuid import uuid4
 
 import redis
 from django.conf import settings
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.utils import timezone as django_timezone
+from redis.exceptions import ResponseError
 
 from contexts.access_control.infrastructure.persistence.models import (
     RoleAssignmentRecord,
@@ -16,7 +18,10 @@ from contexts.access_control.infrastructure.persistence.models import (
 )
 from contexts.crm.infrastructure.persistence.models import ContactRecord
 from contexts.identity.infrastructure.persistence.models import MerchantRecord, UserRecord
-from contexts.order_detection.infrastructure.persistence.models import OrderRecord
+from contexts.order_detection.infrastructure.persistence.models import (
+    OrderRecord,
+    OutboxEventRecord as OrderDetectionOutboxRecord,
+)
 from contexts.platform_connectors.infrastructure.persistence.models import (
     OutboxEventRecord as PlatformOutboxRecord,
     PlatformConnectionRecord,
@@ -34,6 +39,7 @@ class MessageToDormantOrderE2ETests(TestCase):
     databases = {"default"}
 
     def setUp(self):
+        call_command("seed_billing_plans", verbosity=0)
         self.redis = redis.Redis.from_url(settings.REDIS_URL, decode_responses=False)
         try:
             self.redis.ping()
@@ -41,6 +47,8 @@ class MessageToDormantOrderE2ETests(TestCase):
             self.fail(f"Redis required for E2E message pipeline: {error}")
         self.platform_stream = f"test:e2e:platform:{uuid4()}"
         self.rules_stream = f"test:e2e:rules:{uuid4()}"
+        self.order_stream = f"test:e2e:orders:{uuid4()}"
+        self.order_group = f"crm-order-status-{uuid4()}"
         self._groups = []
         self.merchant_id = uuid4()
         self.user_id = uuid4()
@@ -65,7 +73,7 @@ class MessageToDormantOrderE2ETests(TestCase):
         role = RoleRecord.objects.create(
             id=uuid4(),
             name=f"E2E Owner {uuid4()}",
-            permissions=["platform.connect", "order.read"],
+            permissions=["platform.connect", "order.read", "order.update_status"],
             is_system=False,
             created_at=now,
             created_by=str(self.user_id),
@@ -122,7 +130,7 @@ class MessageToDormantOrderE2ETests(TestCase):
                 self.redis.xgroup_destroy(stream_name, group_name)
             except redis.RedisError:
                 pass
-        self.redis.delete(self.platform_stream, self.rules_stream)
+        self.redis.delete(self.platform_stream, self.rules_stream, self.order_stream)
 
     @override_settings(
         PLATFORM_WEBHOOK_SECRETS={"whatsapp": "e2e-webhook-secret"},
@@ -229,6 +237,30 @@ class MessageToDormantOrderE2ETests(TestCase):
         contact = ContactRecord.objects.get(merchant_id=self.merchant_id)
         self.assertEqual(contact.external_identifier, "customer-1")
 
+        paid = self.client.patch(
+            f"/api/v1/orders/{order.id}/status",
+            data=json.dumps({"newStatus": "paid_not_delivered"}),
+            content_type="application/json",
+            **self.headers,
+        )
+        self.assertEqual(paid.status_code, 200, paid.content)
+        self._relay_order_status_to_crm()
+        contact.refresh_from_db()
+        self.assertEqual(contact.order_count, 0)
+
+        delivered = self.client.patch(
+            f"/api/v1/orders/{order.id}/status",
+            data=json.dumps({"newStatus": "paid_and_delivered"}),
+            content_type="application/json",
+            **self.headers,
+        )
+        self.assertEqual(delivered.status_code, 200, delivered.content)
+        self._relay_order_status_to_crm()
+        contact.refresh_from_db()
+        self.assertEqual(contact.order_count, 1)
+        self.assertEqual(contact.total_spent_by_currency, {"XOF": "15000.0000"})
+        self.assertEqual(contact.purchase_history[0]["order_id"], str(order.id))
+
     def _issue_access_token(self):
         from contexts.identity.infrastructure.adapters.django_security_services import (
             DjangoTokenService,
@@ -237,8 +269,12 @@ class MessageToDormantOrderE2ETests(TestCase):
         return DjangoTokenService().issue_tokens(self.user.id)["accessToken"]
 
     def _consume(self, stream_name, group_name, consumer_context):
-        self.redis.xgroup_create(stream_name, group_name, id="0-0", mkstream=True)
-        self._groups.append((stream_name, group_name))
+        try:
+            self.redis.xgroup_create(stream_name, group_name, id="0-0", mkstream=True)
+            self._groups.append((stream_name, group_name))
+        except ResponseError as error:
+            if "BUSYGROUP" not in str(error):
+                raise
         handler = self._handler(consumer_context)
         failures = []
 
@@ -262,6 +298,56 @@ class MessageToDormantOrderE2ETests(TestCase):
         with override_settings(CONSUMER_CONTEXT=consumer_context):
             processed = worker.process_once(block_ms=1)
         self.assertEqual(failures, [], f"{consumer_context} handler error types: {failures}")
+        return processed
+
+    def _relay_order_status_to_crm(self):
+        publisher = RedisStreamEventPublisher(self.redis, self.order_stream)
+        published = OutboxRelayWorker(
+            OrderDetectionOutboxRecord, publisher, 10, 1, 30
+        ).publish_batch()
+        self.assertGreaterEqual(published, 1)
+        from piedlens_platform.event_bus.handlers import handle_order_status_changed
+
+        self._consume_with_handler(
+            self.order_stream,
+            self.order_group,
+            "crm",
+            handle_order_status_changed,
+            published,
+        )
+
+    def _consume_with_handler(
+        self, stream_name, group_name, consumer_context, handler, expected_count
+    ):
+        try:
+            self.redis.xgroup_create(stream_name, group_name, id="0-0", mkstream=True)
+            self._groups.append((stream_name, group_name))
+        except ResponseError as error:
+            if "BUSYGROUP" not in str(error):
+                raise
+        failures = []
+
+        def checked_handler(envelope):
+            try:
+                handler(envelope)
+            except Exception as error:
+                frames = [frame.name for frame in traceback.extract_tb(error.__traceback__)]
+                failures.append((type(error).__name__, frames))
+                raise
+
+        worker = RedisStreamConsumerWorker(
+            self.redis,
+            stream_name,
+            group_name,
+            f"e2e-{uuid4()}",
+            checked_handler,
+            settings.STREAM_CLAIM_IDLE_MS,
+            settings.STREAM_MAX_DELIVERIES,
+        )
+        with override_settings(CONSUMER_CONTEXT=consumer_context):
+            processed = worker.process_once(block_ms=1)
+        self.assertEqual(failures, [], f"{consumer_context} handler error types: {failures}")
+        self.assertEqual(processed, expected_count)
         return processed
 
     @staticmethod

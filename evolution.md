@@ -26,6 +26,12 @@ Mettre a jour ce journal a chaque etape importante.
 - Validation : `tests.integration.test_e2e_message_to_dormant_order` réussi avec SQLite et Redis local.
 - Prochaine sous-étape : test concurrent du quota sur PostgreSQL; PostgreSQL local accepte les connexions TCP mais l'authentification est indisponible sans mot de passe.
 
+## 2026-10-23 - Test concurrent du quota Billing
+
+- Ajout d'un `TransactionTestCase` à deux threads, conditionné au support PostgreSQL de `select_for_update`; deux réservations simultanées au quota 1 doivent produire exactement une réservation et un rejet.
+- Validation locale : le test est collecté puis ignoré sous SQLite (row locks indisponibles). PostgreSQL local répond sur 5432 mais refuse la connexion sans authentification; aucune preuve réelle de concurrence n'est revendiquée.
+- Prochaine sous-étape : suites de sécurité locales, puis exécution du test quota avec PostgreSQL authentifié en CI.
+
 ## 2026-10-19 - Phase 3 : messagerie sortante et coûts configurables
 
 - CRM stocke le mode et la catégorie de campagne. `manual_link` est le défaut WhatsApp, génère `wa.me` seulement pour un numéro international validé, et n'appelle jamais le sender. Le worker des campagnes et des relances journalise les propositions sans quota.

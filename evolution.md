@@ -13,6 +13,12 @@ Mettre a jour ce journal a chaque etape importante.
 - Réconciliation Order Status : contrat partiellement présent dans la documentation, implémentation/tests non trouvés; aucun commit documentaire séparé ne doit être créé sans preuve du code et des tests.
 - Prochaines sous-étapes : test Owner sans `plan.manage`, concurrence PostgreSQL du quota, E2E paiement/livraison, contrôles sécurité; un commit par sous-étape.
 
+## 2026-10-23 - Sécurité des permissions Owner
+
+- Ajout d'un test d'intégration prouvant qu'un Owner attribué au scope d'un merchant ne peut pas invoquer une route `plan.manage` globale, même si le rôle contient cette permission.
+- Validation : test ciblé `test_merchant_owner_cannot_use_global_plan_manage_permission` réussi (403 attendu).
+- Prochaine sous-étape : concurrence du quota sur PostgreSQL réel; SQLite ne valide pas `select_for_update`.
+
 ## 2026-10-19 - Phase 3 : messagerie sortante et coûts configurables
 
 - CRM stocke le mode et la catégorie de campagne. `manual_link` est le défaut WhatsApp, génère `wa.me` seulement pour un numéro international validé, et n'appelle jamais le sender. Le worker des campagnes et des relances journalise les propositions sans quota.

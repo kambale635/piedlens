@@ -4,12 +4,19 @@ from uuid import uuid4
 
 from django.core.management import call_command
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from django.urls import resolve
 
 from contexts.access_control.infrastructure.adapters.django_permission_catalog import (
     DjangoPermissionCatalog,
 )
-from contexts.access_control.infrastructure.persistence.models import RoleRecord
+from contexts.access_control.infrastructure.adapters.django_permission_checker import (
+    DjangoAccessControlPermissionChecker,
+)
+from contexts.access_control.infrastructure.persistence.models import (
+    RoleAssignmentRecord,
+    RoleRecord,
+)
 
 
 class AllowPermissionChecker:
@@ -96,3 +103,36 @@ class AccessControlApiTests(TestCase):
         )
         self.assertNotIn("merchant.delete_data", staff.permissions)
         self.assertEqual(RoleRecord.objects.filter(is_system=True).count(), 3)
+
+    def test_merchant_owner_cannot_use_global_plan_manage_permission(self):
+        now = timezone.now()
+        owner_role = RoleRecord.objects.create(
+            id=uuid4(),
+            name="Owner",
+            permissions=["plan.manage"],
+            is_system=True,
+            created_at=now,
+            created_by="system",
+        )
+        RoleAssignmentRecord.objects.create(
+            id=uuid4(),
+            user_id=self.user_id,
+            role_id=owner_role.id,
+            scope_type="merchant",
+            scope_id=self.merchant_id,
+            granted_by="system",
+            granted_at=now,
+        )
+
+        with override_settings(
+            PIEDLENS_AUTHENTICATOR=self._authenticate,
+            PIEDLENS_PERMISSION_CHECKER=DjangoAccessControlPermissionChecker(),
+        ):
+            response = self.client.put(
+                "/api/v1/admin/outbound-rates",
+                data=json.dumps({"country": "US"}),
+                content_type="application/json",
+                HTTP_X_MERCHANT_ID=str(self.merchant_id),
+            )
+
+        self.assertEqual(response.status_code, 403, response.content)

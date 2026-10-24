@@ -49,7 +49,11 @@ class MessageToDormantOrderE2ETests(TestCase):
         self.rules_stream = f"test:e2e:rules:{uuid4()}"
         self.order_stream = f"test:e2e:orders:{uuid4()}"
         self.order_group = f"crm-order-status-{uuid4()}"
+        self.rules_group = f"rules-{uuid4()}"
+        self.crm_group = f"crm-{uuid4()}"
+        self.order_detection_group = f"order-detection-{uuid4()}"
         self._groups = []
+        call_command("seed_order_status_intents", verbosity=0)
         self.merchant_id = uuid4()
         self.user_id = uuid4()
         now = django_timezone.now()
@@ -195,17 +199,14 @@ class MessageToDormantOrderE2ETests(TestCase):
             OutboxRelayWorker(PlatformOutboxRecord, platform_publisher, 10, 1, 30).publish_batch(),
             2,
         )
-        rules_group = f"rules-{uuid4()}"
-        crm_group = f"crm-{uuid4()}"
-        rules_messages = self._consume(self.platform_stream, rules_group, "rules-engine")
-        self._consume(self.platform_stream, crm_group, "crm")
+        rules_messages = self._consume(self.platform_stream, self.rules_group, "rules-engine")
+        self._consume(self.platform_stream, self.crm_group, "crm")
         self.assertEqual(rules_messages, 2)
         self.assertEqual(
             list(RulesOutboxRecord.objects.values_list("event_type", flat=True)),
             ["MessageEvaluated"],
         )
 
-        order_detection_group = f"order-detection-{uuid4()}"
         self.assertEqual(
             OutboxRelayWorker(
                 RulesOutboxRecord,
@@ -216,7 +217,7 @@ class MessageToDormantOrderE2ETests(TestCase):
             ).publish_batch(),
             1,
         )
-        self._consume(self.rules_stream, order_detection_group, "order-detection")
+        self._consume(self.rules_stream, self.order_detection_group, "order-detection")
 
         order = OrderRecord.objects.get(merchant_id=self.merchant_id)
         self.assertEqual(order.status, "pending_payment")
@@ -237,29 +238,91 @@ class MessageToDormantOrderE2ETests(TestCase):
         contact = ContactRecord.objects.get(merchant_id=self.merchant_id)
         self.assertEqual(contact.external_identifier, "customer-1")
 
-        paid = self.client.patch(
-            f"/api/v1/orders/{order.id}/status",
-            data=json.dumps({"newStatus": "paid_not_delivered"}),
-            content_type="application/json",
-            **self.headers,
+        self._send_followup_message("e2e-message-2", "c'est payé")
+        order.refresh_from_db()
+        self.assertEqual(order.status, "paid_not_delivered")
+        dashboard = self.client.get(
+            "/api/v1/dashboard/dormant-money?olderThanHours=1", **self.headers
         )
-        self.assertEqual(paid.status_code, 200, paid.content)
-        self._relay_order_status_to_crm()
+        self.assertEqual(dashboard.status_code, 200, dashboard.content)
+        self.assertEqual(
+            dashboard.json()["totalDormantAmount"],
+            {"amount": "15000.0000", "currency": "XOF"},
+        )
         contact.refresh_from_db()
         self.assertEqual(contact.order_count, 0)
 
-        delivered = self.client.patch(
-            f"/api/v1/orders/{order.id}/status",
-            data=json.dumps({"newStatus": "paid_and_delivered"}),
-            content_type="application/json",
-            **self.headers,
+        self._send_followup_message("e2e-message-3", "bien reçu")
+        order.refresh_from_db()
+        self.assertEqual(order.status, "paid_and_delivered")
+        dashboard = self.client.get(
+            "/api/v1/dashboard/dormant-money?olderThanHours=1", **self.headers
         )
-        self.assertEqual(delivered.status_code, 200, delivered.content)
-        self._relay_order_status_to_crm()
+        self.assertEqual(dashboard.status_code, 200, dashboard.content)
+        self.assertEqual(dashboard.json()["orders"], [])
+        self.assertEqual(dashboard.json()["totalsByCurrency"], [])
         contact.refresh_from_db()
         self.assertEqual(contact.order_count, 1)
         self.assertEqual(contact.total_spent_by_currency, {"XOF": "15000.0000"})
         self.assertEqual(contact.purchase_history[0]["order_id"], str(order.id))
+
+    def _send_followup_message(self, message_id, text):
+        timestamp = str(int(datetime.now(timezone.utc).timestamp()))
+        raw_body = json.dumps(
+            {
+                "platformConnectionId": str(
+                    PlatformConnectionRecord.objects.get(merchant_id=self.merchant_id).id
+                ),
+                "messages": [
+                    {
+                        "id": message_id,
+                        "from": "customer-1",
+                        "displayName": "Client",
+                        "text": text,
+                        "timestamp": timestamp,
+                    }
+                ],
+            },
+            separators=(",", ":"),
+        ).encode("utf-8")
+        signature = hmac.new(
+            b"e2e-webhook-secret",
+            timestamp.encode("ascii") + b"." + raw_body,
+            hashlib.sha256,
+        ).hexdigest()
+        response = self.client.post(
+            "/api/v1/webhooks/whatsapp",
+            data=raw_body,
+            content_type="application/json",
+            HTTP_X_HUB_SIGNATURE_256=f"sha256={signature}",
+            HTTP_X_WEBHOOK_TIMESTAMP=timestamp,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["messageCount"], 1)
+
+        platform_publisher = RedisStreamEventPublisher(self.redis, self.platform_stream)
+        platform_count = OutboxRelayWorker(
+            PlatformOutboxRecord, platform_publisher, 10, 1, 30
+        ).publish_batch()
+        self.assertEqual(platform_count, 1)
+        self.assertEqual(
+            self._consume(self.platform_stream, self.rules_group, "rules-engine"), 1
+        )
+        self.assertEqual(self._consume(self.platform_stream, self.crm_group, "crm"), 1)
+
+        rules_count = OutboxRelayWorker(
+            RulesOutboxRecord,
+            RedisStreamEventPublisher(self.redis, self.rules_stream),
+            10,
+            1,
+            30,
+        ).publish_batch()
+        self.assertEqual(rules_count, 1)
+        self.assertEqual(
+            self._consume(self.rules_stream, self.order_detection_group, "order-detection"),
+            1,
+        )
+        self._relay_order_status_to_crm()
 
     def _issue_access_token(self):
         from contexts.identity.infrastructure.adapters.django_security_services import (

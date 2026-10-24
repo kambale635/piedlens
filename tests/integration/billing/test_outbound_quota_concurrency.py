@@ -1,11 +1,12 @@
 from datetime import datetime, timezone
 from io import StringIO
+import os
 import threading
 from uuid import uuid4
 
 from django.core.management import call_command
 from django.db import close_old_connections, connection
-from django.test import TransactionTestCase, skipUnlessDBFeature
+from django.test import TransactionTestCase
 
 from contexts.billing.infrastructure.adapters.django_entitlement_reader import (
     DjangoEntitlementReader,
@@ -24,13 +25,15 @@ from contexts.identity.infrastructure.persistence.models import MerchantRecord
 from shared_kernel.application_exceptions import OutboundQuotaExceededException
 
 
-@skipUnlessDBFeature("has_select_for_update")
 class OutboundQuotaConcurrencyTests(TransactionTestCase):
     reset_sequences = True
 
     def setUp(self):
-        if connection.vendor != "postgresql":
-            self.skipTest("Quota row-lock concurrency requires PostgreSQL.")
+        if connection.vendor != "postgresql" or not connection.features.has_select_for_update:
+            message = "Quota row-lock concurrency requires PostgreSQL with SELECT FOR UPDATE."
+            if os.environ.get("REQUIRE_POSTGRES") == "1":
+                self.fail(message)
+            self.skipTest(message)
         call_command("seed_billing_plans", stdout=StringIO())
         self.merchant_id = uuid4()
         MerchantRecord.objects.create(

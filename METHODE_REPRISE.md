@@ -1,3 +1,3 @@
-Fait : sous-étapes a/b commitées (`3ec75a3`, `8187cfc`); E2E faible confiance/API passe; Backup snapshot chiffré + export signé confirmé (3 tests).
-Prochaine action : commit c, puis rendre le test de concurrence quota obligatoire en CI via `REQUIRE_POSTGRES=1` et vérifier qu’il n’est pas ignoré.
-Test : `./venv/bin/python manage.py test tests.integration.test_e2e_detection_candidate_review tests.integration.backup.test_backup_exports.BackupExportIntegrationTests.test_signed_url_retrieves_only_the_signed_object --settings=config.test_settings -v 1`
+Fait : sous-étapes a/b/c commitées (`3ec75a3`, `8187cfc`, `107ffaa`); candidate/API et Backup snapshot/export validés. CI exige le test quota avec `REQUIRE_POSTGRES=1`.
+Prochaine action : commit d; ensuite, lancer localement sur PostgreSQL configuré avec `REQUIRE_POSTGRES=1 ./venv/bin/python manage.py test tests.integration.billing.test_outbound_quota_concurrency --settings=config.ci_settings -v 2`.
+Test : `REQUIRE_POSTGRES=1 ./venv/bin/python manage.py test tests.integration.billing.test_outbound_quota_concurrency --settings=config.test_settings -v 1` échoue comme attendu sous SQLite; PostgreSQL réel requis pour valider les threads.

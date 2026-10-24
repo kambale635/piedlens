@@ -62,6 +62,10 @@ jobs:
         run: |
           python -m pip install pip-audit==2.9.0
           pip-audit -r requirements.txt
+      - name: Require PostgreSQL quota concurrency test
+        env:
+          REQUIRE_POSTGRES: "1"
+        run: python manage.py test tests.integration.billing.test_outbound_quota_concurrency --settings=config.ci_settings -v 2
       - name: Run complete suite on PostgreSQL and Redis
         run: python manage.py test tests --settings=config.ci_settings -v 1
 

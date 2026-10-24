@@ -38,6 +38,13 @@ class IClock(Protocol):
         """Return a timezone-aware current instant."""
 
 
+class IOrderStatusIntentReader(Protocol):
+    """Read the configured Rules Engine intent labels used by Order Detection (INV-RE-04)."""
+
+    def configured_intents(self, merchant_id: UUID) -> frozenset[str]:
+        """Return active status intent labels configured for the merchant."""
+
+
 class IOrderDetectionUnitOfWork(Protocol):
     """Defines the transaction boundary for an Order Detection aggregate and outbox."""
 

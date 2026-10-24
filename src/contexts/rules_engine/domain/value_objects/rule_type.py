@@ -7,3 +7,4 @@ class RuleType(StrEnum):
     AMOUNT_PATTERN = "AmountPattern"
     PAYMENT_PROOF_SIGNAL = "PaymentProofSignal"
     EMOJI_SIGNAL = "EmojiSignal"
+    CONFIGURED_INTENT = "ConfiguredIntent"

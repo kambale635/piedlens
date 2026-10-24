@@ -41,6 +41,15 @@ from contexts.order_detection.application.use_cases.validate_or_reject_detection
 from contexts.order_detection.application.use_cases.update_order_status_use_case import (
     UpdateOrderStatusUseCase,
 )
+from contexts.order_detection.application.use_cases.reconcile_order_status_from_message_use_case import (
+    ReconcileOrderStatusFromMessageUseCase,
+)
+from contexts.order_detection.infrastructure.adapters.django_order_status_intent_configuration import (
+    DjangoOrderStatusIntentConfiguration,
+)
+from contexts.rules_engine.infrastructure.adapters.django_order_status_intent_reader import (
+    DjangoOrderStatusIntentReader,
+)
 from contexts.order_detection.infrastructure.persistence.django_detection_candidate_repository import (
     DjangoDetectionCandidateRepository,
 )
@@ -513,6 +522,18 @@ class ApplicationContainer:
         )
 
     @staticmethod
+    def reconcile_order_status(configuration) -> ReconcileOrderStatusFromMessageUseCase:
+        """Wire the message status consumer to Order-owned persistence and Outbox (INV-OD-09)."""
+        return ReconcileOrderStatusFromMessageUseCase(
+            order_repository=DjangoOrderRepository(),
+            processed_events=DjangoOrderDetectionProcessedEventRepository(),
+            configuration=configuration,
+            intent_reader=DjangoOrderStatusIntentReader(),
+            unit_of_work=DjangoOrderDetectionUnitOfWork(),
+            outbox=DjangoOrderDetectionOutbox(),
+        )
+
+    @staticmethod
     def get_dormant_money_dashboard() -> GetDormantMoneyDashboardUseCase:
         """Wire the dashboard query to the Order Detection read repository."""
         return GetDormantMoneyDashboardUseCase(
@@ -864,6 +885,7 @@ class ApplicationContainer:
             country_reader=DjangoMerchantCountryReader(),
             evaluators={
                 RuleType.KEYWORD_MATCH: KeywordMatchEvaluator(),
+                RuleType.CONFIGURED_INTENT: KeywordMatchEvaluator(),
                 RuleType.AMOUNT_PATTERN: AmountPatternEvaluator(),
                 RuleType.PAYMENT_PROOF_SIGNAL: MediaPresenceEvaluator(),
                 RuleType.EMOJI_SIGNAL: EmojiMatchEvaluator(),

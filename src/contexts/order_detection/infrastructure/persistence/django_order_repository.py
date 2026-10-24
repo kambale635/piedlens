@@ -72,6 +72,26 @@ class DjangoOrderRepository:
         ).order_by("-created_at")
         return [self._to_domain(record) for record in records]
 
+    def find_orders_for_status_reconciliation(
+        self,
+        merchant_id: UUID,
+        contact_id: UUID,
+        expected_status: str,
+        source_timestamp,
+        within_days: int,
+    ) -> list[Order]:
+        """Lock matching Orders in the configured window ending at source time (INV-OD-09)."""
+        from datetime import timedelta
+
+        records = OrderRecord.objects.select_for_update().filter(
+            merchant_id=merchant_id,
+            contact_id=contact_id,
+            status=expected_status,
+            created_at__gte=source_timestamp - timedelta(days=within_days),
+            created_at__lte=source_timestamp,
+        ).order_by("-created_at", "-id")
+        return [self._to_domain(record) for record in records]
+
     def find_dormant(self, merchant_id: UUID, older_than_hours: int) -> list[Order]:
         """Read old open Orders for one merchant in dashboard display order."""
         from datetime import timedelta

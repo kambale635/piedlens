@@ -45,6 +45,7 @@
 - **INV-OD-05** : Agrégation du "argent qui dort" toujours par devise homogène (`Money.add()` refuse d'additionner deux devises différentes) — jamais d'addition arithmétique nue.
 - **INV-OD-06** : Pas de double planification d'un `Reminder` identique (même `orderId` + même `reminderType`) en statut `Scheduled` simultanément.
 - **INV-OD-07** : Une détection dont le `confidenceScore` est inférieur au seuil configuré est persistée comme `DetectionCandidate` en `pending_review`, jamais comme `Order`. Un candidat est décidé une seule fois : `pending_review` devient `promoted` ou `rejected`, et un `Order` n'est créé qu'au moment d'une validation manuelle explicite.
+- **INV-OD-09** : un intent de paiement/livraison configuré dans le Rules Engine peut faire évoluer uniquement le dernier `Order` compatible du même merchant/contact dans la fenêtre de corrélation avant l'horodatage source. Le paiement suit `pending_payment → paid_not_delivered`; la livraison suit `paid_not_delivered → paid_and_delivered`. La transition est validée par `Order.change_status()`, ne crée jamais d'Order et est atomique avec le marqueur idempotent et `OrderStatusChanged` dans l'Outbox.
 
 ## 6. Invariants — CRM
 

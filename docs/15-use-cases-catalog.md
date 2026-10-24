@@ -315,13 +315,13 @@ Chaque bounded context consomme cet événement de façon idempotente (INV-TR-03
 - **Événements publiés** : `OrderStatusChanged`
 
 ### `ReconcileOrderStatusFromMessageUseCase`
-- **Déclencheur** : `MessageEvaluated` dont `extractedData.intent` est configure a `payment_received` ou `delivery_confirmed`.
-- **Entrée** : `{ eventId: uuid, merchantId: uuid, contactId: uuid, intent: "payment_received"|"delivery_confirmed", sourceMessageId: uuid, sourceMessageTimestamp: datetime }`
+- **Déclencheur** : `MessageEvaluated` dont `extractedData.intent` correspond à un intent actif des RuleSets configurables du Rules Engine (`ConfiguredIntent`; seed français et anglais).
+- **Entrée** : `{ eventId: uuid, merchantId: uuid, contactId: uuid, intent: string, sourceMessageId: uuid, sourceMessageTimestamp: datetime }`
 - **Sortie** : `{ outcome: "updated"|"ignored"|"already_processed", orderId?: uuid, status?: string }`
-- **Préconditions** : dernier Order ouvert compatible du merchant/contact dans `ORDER_DETECTION_CORRELATION_WINDOW_DAYS`; paiement cible `pending_payment`, livraison cible `paid_not_delivered`.
-- **Postconditions** : aucun Order cree; transition faite par l'agregat, avec Outbox et marqueur idempotent dans la meme transaction.
-- **Erreurs** : `409 INVALID_ORDER_TRANSITION`; absence de cible compatible retourne `ignored`.
-- **Événements publiés** : `OrderStatusChanged` uniquement si transition effectuee.
+- **Préconditions** : dernier Order compatible du même merchant/contact, créé dans `ORDER_DETECTION_CORRELATION_WINDOW_DAYS` avant l'horodatage source; `payment_received` cible `pending_payment`, `delivery_confirmed` cible `paid_not_delivered`.
+- **Postconditions** : ne crée jamais d'Order; appelle `Order.change_status()`; le marqueur `(eventId, consumerName)`, la mutation et l'événement Outbox sont atomiques (INV-TR-01/02/03).
+- **Erreurs** : `409 INVALID_ORDER_TRANSITION`; absence de cible ou intent non configuré retourne `ignored`; un rejeu retourne `already_processed`.
+- **Événements publiés** : `OrderStatusChanged` uniquement si une transition est effectuée.
 
 ### `GetDormantMoneyDashboardUseCase`
 - **Entrée** : `{ merchantId: uuid, olderThanHours?: number (défaut 24) }`

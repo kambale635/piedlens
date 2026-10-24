@@ -1,3 +1,3 @@
-Phase 4 Billing/architecture/isolation validée localement : suite ciblée 30/30 après ajout de la migration `billing.0006_paidperiodrecord_amount_minor_and_more`; `makemigrations --check --dry-run` ne détecte aucune migration manquante. Validation effectuée avec SQLite, donc la concurrence PostgreSQL reste à prouver.
-Prochaine étape : reprendre les tâches restantes une par une (Owner sans `plan.manage`, concurrence PostgreSQL du quota, E2E paiement/livraison, sécurité), puis relancer la suite complète avant commit de ces sous-étapes.
-Blocage documentaire séparé : `ReconcileOrderStatusFromMessageUseCase` et INV-OD-09 sont documentés mais aucun code/test correspondant n’a été trouvé; ne pas committer ces docs avant confirmation de l’implémentation et de ses tests.
+Fait : sous-étape a validée, réconciliation idempotente/Outbox atomique, seed fr/en configurable, tests unitaires et ORM, docs 11/15/16 avec INV-OD-09; commit `feat(order-detection): reconcile payment and delivery messages`.
+Prochaine action : committer séparément l’E2E paiements/livraison par webhooks signés, puis les scénarios faible confiance et Backup; confirmer enfin le garde-fou PostgreSQL CI.
+Test : `./venv/bin/python manage.py test tests.integration.test_e2e_message_to_dormant_order --settings=config.test_settings -v 1`

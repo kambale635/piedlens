@@ -11,6 +11,9 @@ Détecter automatiquement, à partir des messages évalués par le Rules Engine,
 - **Cas score < seuil** : crée un `DetectionCandidate` en `PendingReview` — **aucun `Order` n'est créé à ce stade** (voir INV-OD-04, INV-OD-07, et `02-domain-model.md` pour la justification de cet agrégat séparé). Publie `DetectionCandidateCreated`.
 - Persister via `IOrderRepository` (cas Order) ou `IDetectionCandidateRepository` (cas candidat).
 
+### `ReconcileOrderStatusFromMessageUseCase`
+Consomme `MessageEvaluated` lorsque `extractedData.intent` correspond à un intent actif fourni par les RuleSets configurables du Rules Engine. Les règles seed fr/en sont des données modifiables; leurs mots-clés ne sont pas codés dans le domaine. Le paiement cible le dernier `pending_payment` et le fait passer à `paid_not_delivered`; la livraison cible le dernier `paid_not_delivered` et le fait passer à `paid_and_delivered`, pour le même merchant/contact et dans `ORDER_DETECTION_CORRELATION_WINDOW_DAYS` avant l'horodatage source. La transition passe par `Order.change_status()`. Sans cible compatible, le résultat est `ignored`; aucun Order n'est créé. Le marqueur consommateur, la mutation et `OrderStatusChanged` partagent la transaction Order Detection (INV-OD-01/02/09, INV-TR-01/02/03).
+
 ### `ValidateOrRejectDetectionUseCase`
 Opère sur un `DetectionCandidate`, jamais directement sur un `Order` :
 1. `validate` → crée un **nouvel** `Order` (id distinct du candidat) en `pending_payment`, marque le candidat `Promoted` avec référence vers l'`Order` créé

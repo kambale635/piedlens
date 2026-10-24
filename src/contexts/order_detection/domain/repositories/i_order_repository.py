@@ -1,4 +1,5 @@
 from typing import Protocol
+from datetime import datetime
 from uuid import UUID
 
 from ..entities.order import Order
@@ -21,6 +22,16 @@ class IOrderRepository(Protocol):
 
     def find_pending_by_contact(self, contact_id: UUID, within_days: int) -> list[Order]:
         """Return open Orders for a contact in the window, newest first (INV-OD-02)."""
+
+    def find_orders_for_status_reconciliation(
+        self,
+        merchant_id: UUID,
+        contact_id: UUID,
+        expected_status: str,
+        source_timestamp: datetime,
+        within_days: int,
+    ) -> list[Order]:
+        """Lock matching merchant/contact Orders in the source-time window (INV-OD-09)."""
 
     def find_by_source_candidate_id(self, candidate_id: UUID) -> Order | None:
         """Find the Order already created for a promoted candidate, if any."""

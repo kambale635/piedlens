@@ -115,7 +115,10 @@ class EvaluateMessageUseCase:
             for rule in scoped_rules
             if rule.is_active
         ]
-        denominator = sum(rule.weight for rule in active_rules)
+        confidence_rules = [
+            rule for rule in active_rules if rule.rule_type != RuleType.CONFIGURED_INTENT
+        ]
+        denominator = sum(rule.weight for rule in confidence_rules)
         message = MessageContent(text_content, has_media, conversation_context)
         matched_ids = []
         extracted_data = {}
@@ -126,7 +129,8 @@ class EvaluateMessageUseCase:
                 continue
             outcome = evaluator.evaluate(message, rule)
             if outcome.matched:
-                numerator += rule.weight
+                if rule.rule_type != RuleType.CONFIGURED_INTENT:
+                    numerator += rule.weight
                 matched_ids.append(rule.rule_id)
                 extracted_data.update(outcome.extracted_data)
         score = round(numerator * 100 / denominator) if denominator else 0

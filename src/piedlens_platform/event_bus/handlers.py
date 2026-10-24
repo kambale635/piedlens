@@ -11,6 +11,9 @@ from contexts.order_detection.application.ports.detection_configuration import (
     DetectionConfiguration,
 )
 from contexts.order_detection.application.dto.evaluation_result import EvaluationResult
+from contexts.order_detection.domain.events.order_detection_events import (
+    DetectionCandidatePromoted,
+)
 from piedlens_platform.di.container import ApplicationContainer
 from shared_kernel.value_objects.confidence_score import ConfidenceScore
 from shared_kernel.value_objects.money import Money
@@ -94,7 +97,13 @@ def handle_message_evaluated(envelope):
     if isinstance(raw_amount, dict):
         amount = Money(Decimal(str(raw_amount["amount"])), raw_amount["currency"])
     evaluation = EvaluationResult(
-        confidence_score=ConfidenceScore(int(payload["confidence_score"])),
+        confidence_score=ConfidenceScore(
+            int(
+                payload["confidence_score"].get("value")
+                if isinstance(payload["confidence_score"], dict)
+                else payload["confidence_score"]
+            )
+        ),
         intent=extracted.get("intent"),
         amount=amount,
         matched_rule_ids=tuple(_uuid(item) for item in payload.get("matched_rule_ids", [])),
@@ -108,6 +117,16 @@ def handle_message_evaluated(envelope):
         event_id=event_id,
         contact_id=contact.contact_id,
         evaluation_result=evaluation,
+        source_message_id=_uuid(payload["message_id"]),
+        source_message_timestamp=_datetime(source_timestamp),
+    )
+    ApplicationContainer.reconcile_order_status(
+        _StaticDetectionConfiguration(configuration)
+    ).execute(
+        event_id=event_id,
+        merchant_id=merchant_id,
+        contact_id=contact.contact_id,
+        intent=extracted.get("intent"),
         source_message_id=_uuid(payload["message_id"]),
         source_message_timestamp=_datetime(source_timestamp),
     )
@@ -127,6 +146,32 @@ def handle_order_status_changed(envelope):
         order_amount=Money(Decimal(str(amount["amount"])), amount["currency"]),
         updated_at=_datetime(payload["updated_at"]),
     )
+
+
+def handle_detection_candidate_promoted(envelope):
+    """Create an Order from a validated candidate in a separate transaction."""
+    if envelope["eventType"] != "DetectionCandidatePromoted":
+        return
+    payload = envelope["payload"]
+    event = DetectionCandidatePromoted(
+        candidate_id=_uuid(payload["candidate_id"]),
+        merchant_id=_uuid(payload["merchant_id"]),
+        contact_id=_uuid(payload["contact_id"]),
+        source_message_id=_uuid(payload["source_message_id"]),
+        detected_amount=Money(
+            Decimal(str(payload["detected_amount"]["amount"])),
+            payload["detected_amount"]["currency"],
+        ),
+        confidence_score=ConfidenceScore(
+            int(payload["confidence_score"]["value"])
+            if isinstance(payload["confidence_score"], dict)
+            else int(payload["confidence_score"])
+        ),
+        matched_rule_ids=tuple(_uuid(value) for value in payload["matched_rule_ids"]),
+        event_id=_uuid(envelope["eventId"]),
+        occurred_at=_datetime(envelope["occurredAt"]),
+    )
+    ApplicationContainer.create_order_from_promoted_detection().execute(event)
 
 
 def handle_merchant_data_deleted(envelope):

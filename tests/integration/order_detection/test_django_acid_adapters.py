@@ -39,6 +39,9 @@ from contexts.order_detection.application.use_cases.validate_or_reject_detection
 from contexts.order_detection.application.use_cases.update_order_status_use_case import (
     UpdateOrderStatusUseCase,
 )
+from contexts.order_detection.application.use_cases.reconcile_order_status_from_message_use_case import (
+    ReconcileOrderStatusFromMessageUseCase,
+)
 from contexts.order_detection.domain.entities.detection_candidate import DetectionCandidate
 from contexts.order_detection.domain.entities.reminder import Reminder, ReminderType
 from contexts.order_detection.infrastructure.persistence.django_detection_candidate_repository import (
@@ -244,6 +247,115 @@ class DjangoOrderDetectionAcidTests(TransactionTestCase):
         self.assertEqual(persisted_order.status, "paid_not_delivered")
         self.assertEqual(event_record.event_type, "OrderStatusChanged")
         self.assertEqual(event_record.payload["previous_status"], "pending_payment")
+
+    def test_message_status_reconciliation_commits_order_outbox_and_marker_once(self):
+        order = self._make_order()
+        with self.unit_of_work:
+            self.order_repository.save(order)
+
+        class FixedIntentReader:
+            def configured_intents(self, merchant_id):
+                return frozenset({"payment_received", "delivery_confirmed"})
+
+        class FixedConfiguration:
+            def for_merchant(self, merchant_id):
+                return DetectionConfiguration(
+                    confidence_threshold=70,
+                    correlation_window_days=3,
+                )
+
+        use_case = ReconcileOrderStatusFromMessageUseCase(
+            order_repository=self.order_repository,
+            processed_events=self.processed_events,
+            configuration=FixedConfiguration(),
+            intent_reader=FixedIntentReader(),
+            unit_of_work=self.unit_of_work,
+            outbox=self.outbox,
+        )
+        event_id = uuid4()
+        arguments = {
+            "event_id": event_id,
+            "merchant_id": order.merchant_id,
+            "contact_id": order.contact_id,
+            "intent": "payment_received",
+            "source_message_id": uuid4(),
+            "source_message_timestamp": datetime.now(timezone.utc),
+        }
+
+        first = use_case.execute(**arguments)
+        replay = use_case.execute(**arguments)
+
+        self.assertEqual((first.outcome, first.status), ("updated", "paid_not_delivered"))
+        self.assertEqual(replay.outcome, "already_processed")
+        self.assertEqual(OrderRecord.objects.get(id=order.id).status, "paid_not_delivered")
+        self.assertEqual(
+            OutboxEventRecord.objects.filter(event_type="OrderStatusChanged").count(), 1
+        )
+        self.assertEqual(
+            ProcessedEventRecord.objects.filter(
+                event_id=event_id,
+                consumer_name=use_case.CONSUMER_NAME,
+            ).count(),
+            1,
+        )
+
+    def test_message_status_reconciliation_rolls_back_order_outbox_and_marker(self):
+        order = self._make_order()
+        with self.unit_of_work:
+            self.order_repository.save(order)
+
+        class FixedIntentReader:
+            def configured_intents(self, merchant_id):
+                return frozenset({"payment_received"})
+
+        class FixedConfiguration:
+            def for_merchant(self, merchant_id):
+                return DetectionConfiguration(
+                    confidence_threshold=70,
+                    correlation_window_days=3,
+                )
+
+        class FailingProcessedEvents:
+            def has_processed(self, event_id, consumer_name):
+                return self.processed.has_processed(event_id, consumer_name)
+
+            def mark_processed(self, event_id, consumer_name):
+                self.processed.mark_processed(event_id, consumer_name)
+                raise RuntimeError("force marker failure")
+
+            def __init__(self, processed):
+                self.processed = processed
+
+        use_case = ReconcileOrderStatusFromMessageUseCase(
+            order_repository=self.order_repository,
+            processed_events=FailingProcessedEvents(self.processed_events),
+            configuration=FixedConfiguration(),
+            intent_reader=FixedIntentReader(),
+            unit_of_work=self.unit_of_work,
+            outbox=self.outbox,
+        )
+        event_id = uuid4()
+
+        with self.assertRaises(RuntimeError):
+            use_case.execute(
+                event_id=event_id,
+                merchant_id=order.merchant_id,
+                contact_id=order.contact_id,
+                intent="payment_received",
+                source_message_id=uuid4(),
+                source_message_timestamp=datetime.now(timezone.utc),
+            )
+
+        self.assertEqual(OrderRecord.objects.get(id=order.id).status, "pending_payment")
+        self.assertFalse(
+            OutboxEventRecord.objects.filter(event_type="OrderStatusChanged").exists()
+        )
+        self.assertFalse(
+            ProcessedEventRecord.objects.filter(
+                event_id=event_id,
+                consumer_name=use_case.CONSUMER_NAME,
+            ).exists()
+        )
 
     def test_dormant_dashboard_filters_by_merchant_age_and_open_status(self):
         from datetime import timedelta

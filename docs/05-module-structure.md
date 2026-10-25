@@ -23,6 +23,15 @@ Pour le dépôt Python/Django, les concepts du schéma historique ci-dessous son
     /backup
     /order_detection
     /crm
+    /country_packs
+    /mobile_money
+    /currency_rates
+    /catalog_inventory
+    /pricing_negotiation
+    /supplier_network
+    /logistics
+    /storefront
+    /whatsapp_onboarding
       /domain
         /entities
         /value_objects
@@ -44,7 +53,9 @@ Pour le dépôt Python/Django, les concepts du schéma historique ci-dessous son
         /jobs
 ```
 
-Les mêmes couches et sous-couches s'appliquent aux sept contextes. Les modèles Django résident sous `infrastructure/persistence`; les implémentations d'Outbox et de marqueurs d'événements sous `infrastructure/messaging`; les vues et serializers sous `presentation/api`; les workers consommateurs sous `presentation/consumers`; et les tâches planifiées sous `presentation/jobs`. Les contrats de repository sont dans `domain/repositories`, tandis que les ports techniques applicatifs sont dans `application/ports`.
+Les mêmes couches et sous-couches s'appliquent à chaque contexte. Les modèles Django résident sous `infrastructure/persistence`; les implémentations d'Outbox et de marqueurs d'événements sous `infrastructure/messaging`; les vues et serializers sous `presentation/api`; les workers consommateurs sous `presentation/consumers`; et les tâches planifiées sous `presentation/jobs`. Les contrats de repository sont dans `domain/repositories`, tandis que les ports techniques applicatifs sont dans `application/ports`.
+
+Les contextes Commerce social Afrique sont également des applications Django modulaires suivant les mêmes couches : `country_packs`, `mobile_money`, `currency_rates`, `catalog_inventory`, `pricing_negotiation`, `supplier_network`, `logistics`, `storefront` et `whatsapp_onboarding`. Aucun n'importe directement les modèles d'un autre contexte; les contrats de communication passent par ports publiés ou événements Outbox.
 
 `/shared_kernel` et `/middleware` sont transverses et ne constituent pas des bounded contexts. Aucun contexte ne peut importer directement un autre contexte.
 

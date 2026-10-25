@@ -8,6 +8,10 @@ Cible : personnes déjà actives et digital-native en Afrique (et potentiellemen
 
 **Explicitement écarté** : les commerçants "traditionnels" peu digitalisés — ce n'est pas la cible (décision prise explicitement en cours de réflexion, à ne pas réintroduire sans nouvelle validation produit).
 
+### Positionnement Afrique : commerce social
+
+Extension ciblée sur les vendeurs déjà actifs et digitalisés, d'abord en RDC; l'inclusion de commerçants peu digitalisés reste hors cible sans nouvelle décision. L'application prépare commandes, instructions et contenus; le vendeur garde la validation, la publication et la réponse. Les packs pays configurables visent une extension mondiale sans transformer les règles locales en constantes ni prétendre qu'un pack est validé avant revue.
+
 ## 2. Exigences produit non négociables (fixées dès le départ)
 
 - **Non-optionnel** : l'outil doit toucher à l'argent que l'utilisateur reçoit, paie, ou risque de perdre — jamais un outil "de confort" qu'on désinstalle après la nouveauté.
@@ -25,6 +29,7 @@ Cible : personnes déjà actives et digital-native en Afrique (et potentiellemen
 | 3 | Argent qui dort (détection commandes/paiements non finalisés) | **MVP** | `11-context-order-detection.md` |
 | 4 | Mini-CRM automatique | **MVP** | `12-context-crm.md` |
 | 5 | Alerte anti-arnaque (faux paiements/reçus) | V2 — s'appuiera sur le Rules Engine existant (nouveau `RuleType`) | à modéliser en V2, extension naturelle de `08-context-rules-engine.md` |
+| Afrique | Commerce social WhatsApp | Pilote à valider en RDC; phases A/B/C derrière portes de validation | `30-africa-market-vision-and-principles.md`, `40-roadmap-and-validation-gates.md` |
 
 **Pourquoi cet ordre et ce découpage MVP/V2** : les couches 2, 3, 4 s'appuient sur les mêmes données déjà captées (messages, contacts) et se construisent l'une sur l'autre sans dépendance externe lourde. Les couches 1 et 5 demandent soit une agrégation de données externes coûteuse (couche 1), soit un raffinement du moteur de règles avec plus de recul terrain (couche 5) — les reporter n'est pas un renoncement, c'est une séquence délibérée pour sortir vite.
 
@@ -69,3 +74,4 @@ Les prix ci-dessus sont des objectifs produit indicatifs. Le seed Billing initia
 | Architecture événementielle | `14-event-driven-architecture.md` |
 | Standards de documentation/commentaires | `17-documentation-standards.md` |
 | Instructions strictes pour GitHub Copilot | `06-copilot-instructions.md` |
+| Commerce social Afrique et contextes futurs | `30-africa-market-vision-and-principles.md` à `40-roadmap-and-validation-gates.md` |

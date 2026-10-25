@@ -5,7 +5,7 @@ Ce dossier est la **source de vérité** du projet. Il doit être placé à la r
 
 ## Point d'entrée le plus rapide
 
-Si tu n'ouvres que 3 fichiers avant de commencer à coder : `18-product-vision-and-objectives.md` (pourquoi), `16-business-invariants-and-rules.md` (les règles à ne jamais violer), `15-use-cases-catalog.md` (le contrat exact de ce qu'il faut coder). Les autres fichiers détaillent le "comment".
+Si tu n'ouvres que 3 fichiers avant de commencer à coder : `18-product-vision-and-objectives.md` (pourquoi), `16-business-invariants-and-rules.md` (les règles à ne jamais violer), `15-use-cases-catalog.md` (contrats et index). Pour les contextes Afrique, ouvrir aussi le document de contexte référencé par 15, qui fait foi pour le contrat détaillé.
 
 ## Ordre de lecture recommandé
 
@@ -36,6 +36,17 @@ Si tu n'ouvres que 3 fichiers avant de commencer à coder : `18-product-vision-a
 | 23 | `23-shared-kernel-value-objects.md` | Value Objects partagés entre tous les contextes (Money, téléphone, identifiants...) |
 | 24 | `24-permissions-catalog.md` | Catalogue des permissions, généré par Copilot à partir des routes protégées |
 | 25 | `25-context-identity.md` | Bounded Context : Identity (User, Merchant, connexion, inscription) |
+| 30 | `30-africa-market-vision-and-principles.md` | Vision et principes du commerce social africain, pilote RDC |
+| 31 | `31-country-packs-and-localization.md` | CountryPack, RDC et configuration des marchés |
+| 32 | `32-context-mobile-money.md` | Instructions, preuves et rapprochement Mobile Money |
+| 33 | `33-context-currency-rates.md` | Taux merchant, RateSnapshot et conversion explicite |
+| 34 | `34-context-catalog-inventory.md` | Catalogue, variantes, unités et stock |
+| 35 | `35-context-pricing-negotiation.md` | Prix, remises et négociation sous contrôle vendeur |
+| 36 | `36-context-supplier-network.md` | Fournisseurs, vérification humaine et commandes de gros |
+| 37 | `37-context-logistics.md` | Zones, livreurs, remise et rapprochement COD |
+| 38 | `38-context-storefront-status-studio.md` | Cartes Status manuelles et mini-boutique publique |
+| 39 | `39-whatsapp-onboarding-and-compliance.md` | Onboarding, mode sans API et conformité à vérifier |
+| 40 | `40-roadmap-and-validation-gates.md` | Phases et portes de validation du pilote |
 
 ## Règle d'or pour toi (le concepteur produit, non-développeur)
 

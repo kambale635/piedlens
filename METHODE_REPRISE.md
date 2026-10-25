@@ -1,3 +1,3 @@
-Fait : sous-étapes a/b/c/d commitées (`3ec75a3`, `8187cfc`, `107ffaa`, `dfaf7c6`); candidate/API, Backup snapshot/export et garde-fou CI validés.
-Prochaine action : exécuter la concurrence sur une base PostgreSQL locale configurée; aucun identifiant de fournisseur live n’a été ajouté.
-Test local : `REQUIRE_POSTGRES=1 ./venv/bin/python manage.py test tests.integration.billing.test_outbound_quota_concurrency --settings=config.ci_settings -v 2`; définir POSTGRES_DB/USER/PASSWORD/HOST/PORT dans l’environnement local.
+Fait : docs Afrique 30–40 et mises à jour des index, contrats, invariants, permissions, vision, consignes et registre credentials; aucun code ni migration modifiés.
+Prochaine action : demain, implémenter un seul Use Case à la fois selon les contrats des docs de contexte; valider les noms Meta/agrégateurs avec les sources et juristes compétents.
+Test/contrôle : `git diff --check`; vérifier liens, routes proposées non implémentées, maximum ~120 lignes par nouveau document et absence de valeurs de secrets.

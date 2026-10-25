@@ -402,6 +402,24 @@ Chaque bounded context consomme cet événement de façon idempotente (INV-TR-03
 
 ---
 
+## Contextes Afrique (les documents référencés font foi pour le contrat détaillé)
+
+Use Cases et leurs contrats complets — entrée, sortie, erreurs, événements, ports, invariants et tests — sont définis dans le document de contexte indiqué. Les routes/permis proposés ne sont pas déclarés comme implémentés.
+
+| Contexte | Use Cases | Contrat de référence |
+|---|---|---|
+| Country Packs | `PublishCountryPackUseCase`, `ResolveCountryPackUseCase`, `ValidateCountryPackUseCase` | `31-country-packs-and-localization.md` |
+| Mobile Money | `BuildPaymentInstructionsUseCase`, `SubmitPaymentProofUseCase`, `ParsePaymentConfirmationUseCase`, `InitiatePaymentRequestUseCase`, `HandleAggregatorPaymentWebhookUseCase`, `ReconcileExternalPaymentUseCase` | `32-context-mobile-money.md` |
+| Currency Rates | `SetMerchantRateUseCase`, `GetEffectiveRateUseCase`, `CreateRateSnapshotUseCase`, `ReviewRateChangeUseCase`, `DisplayDualCurrencyUseCase` | `33-context-currency-rates.md` |
+| Catalog & Inventory | `CreateProductUseCase`, `UpdateProductUseCase`, `AdjustStockUseCase`, `ImportCatalogCsvUseCase`, `GetLowStockAlertsUseCase`, `AttachProductPhotoUseCase` | `34-context-catalog-inventory.md` |
+| Pricing & Negotiation | `SetPriceListUseCase`, `ProposeNegotiationUseCase`, `ApproveCounterOfferUseCase`, `ReportDiscountMarginUseCase` | `35-context-pricing-negotiation.md` |
+| Supplier Network | `CreateSupplierProfileUseCase`, `OpenVerificationCaseUseCase`, `ReviewVerificationCaseUseCase`, `LinkSupplierUseCase`, `PublishWholesaleCatalogUseCase`, `CreatePurchaseOrderUseCase`, `SubmitSupplierReviewUseCase` | `36-context-supplier-network.md` |
+| Logistics | `QuoteDeliveryUseCase`, `AssignCourierUseCase`, `UpdateDeliveryStatusUseCase`, `ConfirmHandoverUseCase`, `RegisterAgencyShipmentUseCase`, `ReconcileCashOnDeliveryUseCase` | `37-context-logistics.md` |
+| Storefront & Status Studio | `PrepareProductCardUseCase`, `ApproveProductCardUseCase`, `MarkStatusPublishedUseCase`, `SchedulePublicationReminderUseCase`, `ResolveTrackingCodeUseCase`, `PublishReadOnlyStorefrontUseCase`, `GetPublicStorefrontUseCase` | `38-context-storefront-status-studio.md` |
+| WhatsApp onboarding | `GuideWhatsAppBusinessOnboardingUseCase`, `CheckWhatsAppBusinessCapabilityUseCase`, `ImportConversationExportUseCase`, `AnalyzePastedMessagesUseCase`, `RevokeConversationImportConsentUseCase` | `39-whatsapp-onboarding-and-compliance.md` |
+
+---
+
 ## Convention obligatoire de nommage des paramètres (pour cohérence inter-fichiers)
 
 - Tout identifiant : suffixe `Id`, type `uuid` (jamais un entier auto-incrémenté exposé publiquement)

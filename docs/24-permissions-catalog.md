@@ -29,4 +29,28 @@ Catalogue extrait des vues enregistrées dans le resolver Django, via leur attri
 | `outbound.estimate` | Billing | `POST /api/v1/outbound/estimate` |
 | `outbound.usage.read` | Billing | `GET /api/v1/outbound/usage`, `GET /api/v1/reports/value` |
 
-Total : 23 permissions, extraites du resolver Django. Les routes `GET /api/v1/pricing` et webhooks documentés ont une politique publique explicite. Les routes publiques Identity et `POST /api/v1/merchants` ont une politique publique explicite. Les use cases déclenchés par événement ou job n'ont pas de route. Toute route non marquée `@requires_permission` ou `@public_route` est refusée par défaut.
+Total actuel : 23 permissions, extraites du resolver Django. Les routes `GET /api/v1/pricing` et webhooks documentés ont une politique publique explicite. Les routes publiques Identity et `POST /api/v1/merchants` ont une politique publique explicite. Toute route non marquée `@requires_permission` ou `@public_route` est refusée par défaut.
+
+## Permissions proposées — Commerce social Afrique (non implémentées)
+
+Ne pas compter ces entrées dans le total actuel. Elles deviennent effectives seulement après ajout d'une route protégée, d'une politique et de tests d'accès positif/négatif.
+
+| Permission proposée | Contexte | Routes proposées |
+|---|---|---|
+| `country_pack.manage` | Country Packs | `PUT /api/v1/admin/country-packs/{code}` (globale) |
+| `catalog.read`, `catalog.manage`, `catalog.import` | Catalog | lecture/création produits; import CSV |
+| `stock.adjust` | Catalog | `POST /api/v1/catalog/variants/{variant_id}/stock-adjustments` |
+| `pricing.manage` | Pricing | `PUT /api/v1/pricing/price-lists` |
+| `negotiation.use` | Pricing | création proposition et décision vendeur |
+| `fx.read`, `fx.manage` | Currency Rates | `GET/PUT /api/v1/fx/rates` |
+| `mm.proof.submit` | Mobile Money | `POST /api/v1/orders/{order_id}/payment-proofs` |
+| `mm.configure` | Mobile Money | route admin plateforme pour réseaux |
+| `@public_route` | Mobile Money | `POST /api/v1/webhooks/mobile-money/{network_code}`, signature horodatée et anti-rejeu requis |
+| `supplier.read`, `supplier.manage` | Supplier Network | lecture/création profils, dépôt de vérification |
+| `supplier.verify` | Supplier Network | revue plateforme globale (`POST .../review`) |
+| `po.read`, `po.create`, `po.manage` | Supplier Network | consultation, création et gestion bons de commande |
+| `delivery.manage` | Logistics | création/gestion merchant des livraisons |
+| `delivery.update` | Logistics | statut/remise, restreint aux livraisons du livreur assigné |
+| `storefront.manage`, `storefront.read` | Storefront | cartes/vitrine merchant; lecture publique limitée par `@public_route` |
+| `whatsapp.import` | Onboarding | import/collage avec consentement |
+| `@public_route` | Storefront | `GET /api/v1/storefront/{slug}`, contenu publié et sans PII |

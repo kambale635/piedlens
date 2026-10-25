@@ -117,6 +117,38 @@ Chaque erreur 4xx/5xx retourne un corps standard :
 - `POST /api/v1/role-assignments` (`role.assign`) : `{ userId, roleId, scope }` → 201 `{ roleAssignmentId }`
 - `DELETE /api/v1/role-assignments/{id}` (`role.revoke`) → 200 `{ revokedAt }`
 
+## Commerce social Afrique — routes proposées (non implémentées)
+
+`merchantId` vient du Tenant Isolation Middleware, sauf permission explicitement globale/plateforme. Ces contrats indiquent les permissions proposées; voir le contexte référencé par `15-use-cases-catalog.md` avant toute implémentation.
+
+| Route proposée | Permission / politique | Usage |
+|---|---|---|
+| `PUT /api/v1/admin/country-packs/{code}` | `country_pack.manage` (globale) | Publier une version CountryPack |
+| `GET /api/v1/orders/{order_id}/payment-instructions` | `order.read` | Générer des instructions manuelles |
+| `POST /api/v1/orders/{order_id}/payment-proofs` | `mm.proof.submit` | Soumettre une preuve consentie |
+| `POST /api/v1/admin/mobile-money-networks` | `mm.configure` (plateforme) | Configurer un réseau/adaptateur |
+| `POST /api/v1/webhooks/mobile-money/{network_code}` | `@public_route`, signature horodatée et anti-rejeu | Webhook signé d'un agrégateur |
+| `GET /api/v1/fx/rates` | `fx.read` | Lire les taux merchant |
+| `PUT /api/v1/fx/rates` | `fx.manage` | Saisir un taux merchant |
+| `GET/POST /api/v1/catalog/products` | `catalog.read` / `catalog.manage` | Lire/créer produits |
+| `POST /api/v1/catalog/imports` | `catalog.import` | Import CSV |
+| `POST /api/v1/catalog/variants/{variant_id}/stock-adjustments` | `stock.adjust` | Ajouter un mouvement de stock |
+| `PUT /api/v1/pricing/price-lists` | `pricing.manage` | Administrer prix/remises |
+| `POST /api/v1/negotiations` | `negotiation.use` | Préparer proposition non envoyée |
+| `POST /api/v1/negotiations/{thread_id}/decisions` | `negotiation.use` | Décision du vendeur |
+| `GET/POST /api/v1/suppliers` | `supplier.read` / `supplier.manage` | Profils fournisseurs |
+| `POST /api/v1/suppliers/{supplier_id}/verification-cases` | `supplier.manage` | Soumettre une vérification |
+| `POST /api/v1/admin/supplier-verification-cases/{case_id}/review` | `supplier.verify` (plateforme) | Revue humaine |
+| `POST /api/v1/purchase-orders` | `po.create` | Créer bon de commande |
+| `GET/PUT /api/v1/purchase-orders/{purchase_order_id}` | `po.read` / `po.manage` | Lire/gérer bon de commande |
+| `POST /api/v1/deliveries` | `delivery.manage` | Créer/organiser une livraison |
+| `PATCH /api/v1/deliveries/{delivery_id}/status` | `delivery.update` (scope livreur) | Mettre à jour statut |
+| `POST /api/v1/deliveries/{delivery_id}/handover` | `delivery.update` | Confirmer remise |
+| `POST /api/v1/storefront/product-cards` | `storefront.manage` | Préparer carte à publier manuellement |
+| `POST /api/v1/storefront/product-cards/{card_id}/publication-reminders` | `storefront.manage` | Rappel local de publication |
+| `GET /api/v1/storefront/{slug}` | `@public_route` | Vitrine publiée, lecture seule |
+| `POST /api/v1/whatsapp/conversation-imports` | `whatsapp.import` | Import/collage après consentement |
+
 ## Contexte : Billing
 - `GET /api/v1/pricing?country=US` (`@public_route`) → `{ country, plans: [{ code, prices: [{ country, currency, periodDays, amountMinor }], entitlements }] }`; pays exact prioritaire, puis pays `*`, sans conversion de devise.
 - `PUT /api/v1/admin/plans/{code}` (`plan.manage`, permission globale) : `{ active?, order?, entitlements? }` → définition et entitlements configurés.

@@ -42,7 +42,7 @@
 - **INV-OD-02** : Corrélation d'un nouveau signal avec une commande existante : uniquement si même `contactId` ET dans une fenêtre temporelle configurable (défaut 3 jours). Au-delà, nouvelle commande distincte, même client.
 - **INV-OD-03** : Le montant retenu pour un `Order` est celui détecté dans le **dernier** message contenant un `AmountPattern` avant le signal de paiement — jamais le premier montant mentionné (cas de négociation).
 - **INV-OD-04** : Détection automatique de commande uniquement si `confidenceScore >= seuil configuré` (défaut 70) ; en dessous, file de validation manuelle obligatoire, jamais de création automatique silencieuse.
-- **INV-OD-05** : Agrégation du "argent qui dort" toujours par devise homogène (`Money.add()` refuse d'additionner deux devises différentes) — jamais d'addition arithmétique nue.
+- **INV-OD-05** : Agrégation de l'« argent qui dort » toujours par devise homogène (`Money.add()` refuse l'addition de devises différentes). Conversion d'affichage permise uniquement par un `RateSnapshot` explicite et conservé; le total source reste inchangé.
 - **INV-OD-06** : Pas de double planification d'un `Reminder` identique (même `orderId` + même `reminderType`) en statut `Scheduled` simultanément.
 - **INV-OD-07** : Une détection dont le `confidenceScore` est inférieur au seuil configuré est persistée comme `DetectionCandidate` en `pending_review`, jamais comme `Order`. Un candidat est décidé une seule fois : `pending_review` devient `promoted` ou `rejected`, et un `Order` n'est créé qu'au moment d'une validation manuelle explicite.
 - **INV-OD-09** : un intent de paiement/livraison configuré dans le Rules Engine peut faire évoluer uniquement le dernier `Order` compatible du même merchant/contact dans la fenêtre de corrélation avant l'horodatage source. Le paiement suit `pending_payment → paid_not_delivered`; la livraison suit `paid_not_delivered → paid_and_delivered`. La transition est validée par `Order.change_status()`, ne crée jamais d'Order et est atomique avec le marqueur idempotent et `OrderStatusChanged` dans l'Outbox.
@@ -53,6 +53,7 @@
 - **INV-CRM-02** : `CRMSegment` ne stocke jamais la liste de ses membres — toujours calculée dynamiquement (`SegmentMembershipCalculator`), pour éviter la désynchronisation entre agrégats.
 - **INV-CRM-03** : Fusion de contacts (`MergeContactsUseCase`) uniquement déclenchable manuellement par le merchant, jamais automatique — trace d'audit obligatoire conservée après fusion.
 - **INV-CRM-04** : `totalSpentByCurrency` et `orderCount` d'un `Contact` sont recalculés uniquement en réaction à `OrderStatusChanged` (statut `paid_and_delivered`), jamais modifiés directement par un autre chemin. Chaque devise est cumulée séparément selon INV-OD-05; aucune conversion implicite n'est permise.
+- **INV-CRM-08** : un segment comparant `totalSpent` doit déclarer sa devise. Dépenses, prix, marge et seuils restent dans leur devise; comparer ou afficher une autre devise exige un `RateSnapshot` explicite associé à la vue/transaction. Une conversion ne remplace jamais la valeur source ni son historique.
 
 ## 7. Invariants transverses (tous contextes)
 
@@ -60,7 +61,26 @@
 - **INV-TR-02** : Toute émission d'événement de domaine passe par la table `outbox_events` du contexte producteur, dans la même transaction que la modification de l'agrégat (voir `14-event-driven-architecture.md`).
 - **INV-TR-03** : Tout consommateur d'événement est idempotent — vérifie `processed_events` avant traitement, sans exception.
 - **INV-TR-04** : Aucune requête ORM ne joint directement deux schémas de contextes différents, même si techniquement possible dans une base PostgreSQL unique.
-- **INV-TR-05** : Tout `Money` circule toujours comme Value Object `{ amount, currency }`, jamais comme nombre nu, dans quelque contexte que ce soit.
+- **INV-TR-05** : Tout montant circule comme `Money { amount, currency }`, jamais comme nombre nu. Une conversion est permise uniquement via un `RateSnapshot` explicite contenant paire, taux, source, date d'effet et règle d'arrondi; le snapshot accompagne la transaction convertie.
+
+## 7A. Invariants — Commerce social Afrique
+
+- **INV-AF-01** : configuration pays/langue/devise/réseau/intention en données versionnées; aucun branchement pays codé en dur.
+- **INV-AF-02** : aucune négociation, publication, envoi ou action de paiement sans décision explicite du vendeur.
+- **INV-AF-03** : aucun fonds détenu par la plateforme; mouvements réels uniquement par un prestataire agréé.
+- **INV-AF-04** : collecte minimisée, consentement/finalité enregistrés, données sensibles protégées et supprimables selon politique validée.
+
+## 7B. Invariants — Contextes Afrique
+
+- **INV-CP-01..03** : CountryPack publié/versionné; données non validées restent signalées; absence de configuration requise bloque l'opération.
+- **INV-MM-01..05** : preuve distincte d'un paiement confirmé; identifiant de transaction dédupliqué; montant/devise rapprochés; pas de custodie; écritures et marqueurs idempotents.
+- **INV-FX-01..04** : taux positif versionné; snapshot immuable; arrondi configurable; dépassement de seuil alerte sans changer automatiquement le prix.
+- **INV-CAT-01..04** : mouvements de stock append-only; limites négatives explicites; prix/unité/devise traçables; fichiers/photos protégés.
+- **INV-PRC-01..04** : vendeur approuve; contre-offre jamais sous plancher; prix versionné; plancher privé jamais exposé ni journalisé.
+- **INV-SUP-01..05** : vérification humaine traçable, consentement révocable, documents protégés, avis après commande terminée, score explicable.
+- **INV-LOG-01..04** : frais configurés, transitions autorisées, code de remise protégé/limité, COD rapproché sans détention des fonds.
+- **INV-STO-01..04** : publication Status manuelle, vitrine publique sans données privées, prix versionné sans plancher, attribution révocable sans PII.
+- **INV-WA-01..04** : import consenti/minimisé/supprimable; aucune automatisation non officielle; compte non éligible redirigé vers le parcours manuel.
 
 ## 8. Limites par plan et économie configurable
 

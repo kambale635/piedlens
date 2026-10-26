@@ -1,3 +1,7 @@
+# Décisions d’implémentation Afrique
+
+Les décisions D1–D8, règles T1–T10, invariants et phases de livraison sont consolidés dans [`41-implementation-decisions.md`](41-implementation-decisions.md), qui prévaut sur les documents Afrique 30–39 en cas de différence.
+
 # 📐 Documentation d'architecture — SentinelCommerce
 > Nom de code provisoire du projet (renomme-le dans tous les fichiers avant de démarrer)
 

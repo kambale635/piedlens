@@ -1,5 +1,7 @@
 Les décisions D1 à D8 et les règles T1 à T10 du prompt d'implémentation prévalent sur les docs 30 à 39 en cas de différence.
 
+Décisions persistées : [`41-implementation-decisions.md`](41-implementation-decisions.md).
+
 # Roadmap Afrique et portes de validation
 
 Les phases s'exécutent dans l'ordre; B et C ne commencent qu'après lecture et décision documentée sur les résultats du pilote A. Aucun adaptateur réel ne s'active sans autorisation, credentials enregistrés en doc 28 et revue juridique locale.

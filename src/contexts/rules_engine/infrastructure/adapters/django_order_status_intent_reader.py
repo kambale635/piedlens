@@ -5,9 +5,6 @@ Role: expose configured message intent labels through a Rules Engine-owned adapt
 
 from uuid import UUID
 
-from contexts.identity.infrastructure.adapters.django_merchant_country_reader import (
-    DjangoMerchantCountryReader,
-)
 from contexts.rules_engine.infrastructure.persistence.django_rule_set_repository import (
     DjangoRuleSetRepository,
 )
@@ -16,9 +13,9 @@ from contexts.rules_engine.infrastructure.persistence.django_rule_set_repository
 class DjangoOrderStatusIntentReader:
     """Read active intent labels using merchant > country > global RuleSet precedence."""
 
-    def __init__(self, rule_sets=None, country_reader=None) -> None:
+    def __init__(self, country_reader, rule_sets=None) -> None:
         self._rule_sets = rule_sets or DjangoRuleSetRepository()
-        self._country_reader = country_reader or DjangoMerchantCountryReader()
+        self._country_reader = country_reader
 
     def configured_intents(self, merchant_id: UUID) -> frozenset[str]:
         """Return configured intent labels available to message evaluation."""

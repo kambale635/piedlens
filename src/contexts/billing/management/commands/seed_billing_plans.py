@@ -24,6 +24,7 @@ PLAN_SEED = {
             "max_segments": 0,
             "bulk_messages": False,
             "max_managed_merchants": 0,
+            "manual_import": True,
             "export_enabled": True,
         },
     },
@@ -40,6 +41,7 @@ PLAN_SEED = {
             "max_segments": 3,
             "bulk_messages": False,
             "max_managed_merchants": 0,
+            "manual_import": True,
             "export_enabled": True,
         },
     },
@@ -56,6 +58,7 @@ PLAN_SEED = {
             "max_segments": -1,
             "bulk_messages": True,
             "max_managed_merchants": 0,
+            "manual_import": True,
             "export_enabled": True,
         },
     },
@@ -72,6 +75,7 @@ PLAN_SEED = {
             "max_segments": -1,
             "bulk_messages": True,
             "max_managed_merchants": 20,
+            "manual_import": True,
             "export_enabled": True,
         },
     },
@@ -174,7 +178,7 @@ class Command(BaseCommand):
 def _valid_entitlement_value(key, value):
     if key in {"max_connections", "history_days", "outbound_monthly_cap", "max_segments", "max_managed_merchants"}:
         return isinstance(value, int) and not isinstance(value, bool) and value >= -1
-    if key in {"dormant_money_detail", "bulk_messages", "export_enabled"}:
+    if key in {"dormant_money_detail", "bulk_messages", "manual_import", "export_enabled"}:
         return isinstance(value, bool)
     if key == "sync_mode":
         return isinstance(value, str) and bool(value)

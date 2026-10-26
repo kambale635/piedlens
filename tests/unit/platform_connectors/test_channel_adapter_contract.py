@@ -88,3 +88,18 @@ class MockChannelProviderContractTests(ChannelProviderContractMixin, SimpleTestC
 
         with self.assertRaises(ChannelCapabilityUnavailableException):
             registry.require("read_only", IMessageSender)
+
+    def test_new_fake_channel_registers_at_runtime_without_existing_code_changes(self):
+        class FakeConversationSource:
+            def normalize(self, connection, payload):
+                return payload["messages"]
+
+        registry = ChannelProviderRegistry(
+            {"fake_channel": {IWebhookMessageNormalizer: FakeConversationSource()}}
+        )
+        self.assertEqual(
+            registry.require("fake_channel", IWebhookMessageNormalizer).normalize(
+                None, {"messages": ["normalized"]}
+            ),
+            ["normalized"],
+        )

@@ -1,3 +1,3 @@
-Fait : docs Afrique 30–40 et mises à jour des index, contrats, invariants, permissions, vision, consignes et registre credentials; aucun code ni migration modifiés.
-Prochaine action : demain, implémenter un seul Use Case à la fois selon les contrats des docs de contexte; valider les noms Meta/agrégateurs avec les sources et juristes compétents.
-Test/contrôle : `git diff --check`; vérifier liens, routes proposées non implémentées, maximum ~120 lignes par nouveau document et absence de valeurs de secrets.
+Fait : P1 validée, ciblés 18/18, migration synchronisée.
+Prochaine action : commit A P1 par chemins explicites (sans `.github/copilot-instructions.md`), puis P2 Payments.
+Test : `./venv/bin/python manage.py test tests.integration.platform_connectors.test_manual_conversation_import tests.unit.platform_connectors.test_channel_adapter_contract tests.unit.platform_connectors.test_manual_import_use_cases tests.architecture.test_architecture_boundaries --settings=config.test_settings -v 1`

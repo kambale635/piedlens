@@ -38,6 +38,28 @@ def _imports(path: Path) -> list[str]:
 
 
 class ArchitectureBoundaryTests(unittest.TestCase):
+    def test_channel_provider_names_do_not_leak_into_domain_or_application(self):
+        import re
+
+        forbidden = re.compile(
+            r"(?:['\"])(?:whatsapp|instagram|facebook|mpesa|airtel|orange|flexpay|maxicash|pawapay)(?:['\"])",
+            re.IGNORECASE,
+        )
+        violations = []
+        legacy_exceptions = {
+            CONTEXTS_ROOT / "crm/application/use_cases/send_bulk_message_use_case.py",
+            CONTEXTS_ROOT / "platform_connectors/domain/value_objects/platform_type.py",
+        }
+        for context_root in _context_roots():
+            for layer in ("domain", "application"):
+                for path in (context_root / layer).glob("**/*.py"):
+                    if path in legacy_exceptions:
+                        continue
+                    source = path.read_text(encoding="utf-8")
+                    if forbidden.search(source):
+                        violations.append(str(path))
+        self.assertEqual(violations, [])
+
     def test_all_contexts_keep_domain_modules_in_subpackages(self):
         for context_root in _context_roots():
             with self.subTest(context=context_root.name):

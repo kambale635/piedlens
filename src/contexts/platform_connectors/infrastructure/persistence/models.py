@@ -37,6 +37,45 @@ class ChannelConfigRecord(models.Model):
         db_table = "platform_connectors_channel_configs"
 
 
+class ImportFormatRecord(models.Model):
+    code = models.CharField(max_length=64, primary_key=True)
+    version = models.PositiveSmallIntegerField(default=1)
+    active = models.BooleanField(default=True)
+    parser_key = models.CharField(max_length=64)
+    language = models.CharField(max_length=8)
+    config = models.JSONField(default=dict)
+
+    class Meta:
+        db_table = "platform_connectors_import_formats"
+
+
+class ConversationImportRecord(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    merchant_id = models.UUIDField(db_index=True)
+    consent_id = models.UUIDField()
+    consent_given_at = models.DateTimeField()
+    selected_range = models.JSONField(default=dict)
+    format_code = models.CharField(max_length=64)
+    content_hash = models.CharField(max_length=64)
+    encrypted_content = models.TextField()
+    status = models.CharField(max_length=32, default="queued")
+    accepted_count = models.PositiveIntegerField(default=0)
+    rejected_count = models.PositiveIntegerField(default=0)
+    errors = models.JSONField(default=list)
+    next_message_index = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField()
+    updated_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "platform_connectors_conversation_imports"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["merchant_id", "content_hash"],
+                name="uniq_connector_import_merchant_hash",
+            )
+        ]
+
+
 class MessageRecord(models.Model):
     """Normalized inbound message record with a DB-enforced idempotency key (INV-PC-03)."""
 

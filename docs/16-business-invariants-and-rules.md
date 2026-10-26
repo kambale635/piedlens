@@ -72,6 +72,12 @@
 
 ## 7B. Invariants — Contextes Afrique
 
+- **INV-IMP-01** : consentement explicite, merchant, finalité et plage/source sont enregistrés avant l’import; aucun fichier ou texte n’est analysé avant ce consentement.
+- **INV-IMP-02** : l’import est idempotent par merchant et hash canonique du message; un doublon ne produit ni second message normalisé ni nouvel événement `MessageReceived`.
+- **INV-IMP-03** : un lot est reprenable après échec, traité par lots bornés; chaque message accepté et son `MessageReceived` sont persistés dans une transaction Platform Connectors atomique.
+- **INV-IMP-04** : seuls des formats explicitement configurés/versionnés sont acceptés; format inconnu est rejeté clairement, les champs non requis sont minimisés et le contenu importé suit la politique de chiffrement/rétention.
+- **Machine d'état `ConversationImport`** : `queued -> processing -> completed|completed_with_errors|failed`; `processing -> queued` après échec transitoire; une transition terminale ne revient pas à `processing`. Les erreurs par ligne sont conservées sans contenu sensible.
+
 - **INV-CP-01..03** : CountryPack publié/versionné; données non validées restent signalées; absence de configuration requise bloque l'opération.
 - **INV-MM-01..05** : preuve distincte d'un paiement confirmé; identifiant de transaction dédupliqué; montant/devise rapprochés; pas de custodie; écritures et marqueurs idempotents.
 - **INV-FX-01..04** : taux positif versionné; snapshot immuable; arrondi configurable; dépassement de seuil alerte sans changer automatiquement le prix.

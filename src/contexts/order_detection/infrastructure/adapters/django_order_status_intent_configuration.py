@@ -7,8 +7,6 @@ from uuid import UUID
 
 from django.conf import settings
 
-from contexts.rules_engine.infrastructure.persistence.models import RuleSetRecord
-
 from ...application.ports.detection_configuration import (
     DetectionConfiguration,
     IDetectionConfiguration,

@@ -15,6 +15,16 @@ Connecter un nouveau compte plateforme.
 { "id": "uuid", "platformType": "whatsapp", "connectionStatus": "active" }
 ```
 
+### `POST /api/v1/imports` — permission `message.import`
+Import asynchrone et consenti d'un format actif configuré; le merchant est celui du tenant.
+```json
+{ "formatCode": "chat_text_fr_v1", "content": "...", "consentId": "uuid", "consentGiven": true, "selectedRange": {"from":"2026-10-01","to":"2026-10-02"} }
+```
+Réponse `202`: `{ "importId": "uuid", "status": "queued", "duplicate": false }`. Doublon de même contenu/format/merchant retourne le même identifiant.
+
+### `GET /api/v1/imports/{import_id}` — permission `message.import`
+Retourne `{ importId, status, acceptedCount, rejectedCount, errors }` sans retourner le contenu source; import d'un autre merchant retourne 404.
+
 ### `POST /webhooks/whatsapp` — `POST /webhooks/instagram`
 Webhooks entrants, format imposé par chaque plateforme (voir doc officielle de chaque API). Traduits en interne vers l'événement de domaine `MessageReceived`, publié sur le bus.
 
@@ -185,6 +195,7 @@ Le `merchantId` vient toujours du `TenantIsolationMiddleware`.
 | Route | Permission / politique |
 |---|---|
 | `POST /api/v1/platform-connections` | `platform.connect` |
+| `POST /api/v1/imports`, `GET /api/v1/imports/{import_id}` | `message.import` |
 | `GET /api/v1/backups`, `GET /api/v1/backups/exports/{id}` | `backup.read` |
 | `POST /api/v1/backups/{id}/restore` | `backup.restore` |
 | `GET /api/v1/backups/objects/{reference}` | `@public_route` avec signature HMAC temporaire obligatoire |

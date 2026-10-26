@@ -528,7 +528,9 @@ class ApplicationContainer:
             order_repository=DjangoOrderRepository(),
             processed_events=DjangoOrderDetectionProcessedEventRepository(),
             configuration=configuration,
-            intent_reader=DjangoOrderStatusIntentReader(),
+            intent_reader=DjangoOrderStatusIntentReader(
+                country_reader=DjangoMerchantCountryReader()
+            ),
             unit_of_work=DjangoOrderDetectionUnitOfWork(),
             outbox=DjangoOrderDetectionOutbox(),
         )
@@ -832,6 +834,51 @@ class ApplicationContainer:
             replay_ttl_seconds=2 * settings.PLATFORM_WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS,
             unit_of_work=DjangoPlatformConnectorsUnitOfWork(),
             outbox=DjangoPlatformConnectorsOutbox(),
+        )
+
+    @staticmethod
+    def submit_conversation_import():
+        """Wire consented import submission to configuration, encryption and Billing entitlement (INV-IMP-01/02/04)."""
+        from contexts.platform_connectors.application.use_cases.submit_conversation_import_use_case import (
+            SubmitConversationImportUseCase,
+        )
+        from contexts.platform_connectors.infrastructure.persistence.django_conversation_import_repository import (
+            DjangoConversationImportRepository,
+        )
+        from contexts.platform_connectors.infrastructure.persistence.django_import_format_reader import (
+            DjangoImportFormatReader,
+        )
+        from contexts.platform_connectors.infrastructure.adapters.django_message_content_cipher import (
+            DjangoMessageContentCipher,
+        )
+        from contexts.platform_connectors.infrastructure.adapters.system_platform_clock import (
+            SystemPlatformClock,
+        )
+
+        return SubmitConversationImportUseCase(
+            DjangoImportFormatReader(),
+            DjangoConversationImportRepository(DjangoMessageContentCipher()),
+            ApplicationContainer._billing_entitlements(),
+            DjangoMessageContentCipher(),
+            SystemPlatformClock(),
+            settings.DJANGO_MAX_REQUEST_BODY_BYTES,
+        )
+
+    @staticmethod
+    def get_conversation_import():
+        """Wire merchant-scoped import status reads (INV-IMP-01/04)."""
+        from contexts.platform_connectors.application.use_cases.get_conversation_import_use_case import (
+            GetConversationImportUseCase,
+        )
+        from contexts.platform_connectors.infrastructure.persistence.django_conversation_import_repository import (
+            DjangoConversationImportRepository,
+        )
+        from contexts.platform_connectors.infrastructure.adapters.django_message_content_cipher import (
+            DjangoMessageContentCipher,
+        )
+
+        return GetConversationImportUseCase(
+            DjangoConversationImportRepository(DjangoMessageContentCipher())
         )
 
     @staticmethod

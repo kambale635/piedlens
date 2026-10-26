@@ -3,6 +3,14 @@
 Ce fichier conserve les decisions, documents consultes, fichiers crees ou modifies et prochaines etapes afin de faciliter la reprise du projet.
 Mettre a jour ce journal a chaque etape importante.
 
+## 2026-10-25 - P1 Intake agnostique et import manuel
+
+- Ajout de `ConversationImport`, consentement/plage obligatoires, entitlement `manual_import`, idempotence merchant/hash, formats configurables et seed JSON/fr/en/sw; formats inconnus rejetés.
+- `POST /api/v1/imports` (202) et `GET /api/v1/imports/{id}` (`message.import`); worker reprenable par curseur, `MessageReceived` chiffré et Outbox atomiques par message.
+- Tests ciblés : architecture 7/7, unitaires import/channel 8/8, intégration import 3/3; migration déjà générée; aucun adaptateur réel.
+- D8 : fake channel enregistré au runtime et fake format import activé par données de configuration.
+- Prochaine phase : P2 Payments; ajouter ses invariants et machines à états à docs/16 avant le code.
+
 ## 2026-10-23 - Phase 4 Billing : rapport de valeur et validation des routes
 
 - Rapport mensuel de valeur ajouté : usages API du mois par merchant, pays/devise, estimation par tarif actif et signalement explicite des catégories non tarifées.

@@ -18,6 +18,20 @@ Parcours guidé : expliquer différence entre compte WhatsApp et WhatsApp Busine
 
 Mode sans API : import de fichier exporté par l'utilisateur ou collage manuel; analyseurs de format sont configurables et versionnés. Informer des champs extraits, masquer/supprimer médias non requis, éviter de conserver les originaux, permettre aperçu et correction avant traitement.
 
+## P1 — Import manuel implémenté
+
+`POST /api/v1/imports` (`message.import`) exige `consentGiven=true`, `consentId`, plage choisie, un `formatCode` actif et l'entitlement `manual_import`; il retourne 202 et une tâche idempotente par merchant/hash. `GET /api/v1/imports/{id}` ne retourne que l'état au merchant propriétaire. Les contenus stockés sont chiffrés et soumis au plafond HTTP configurable; la tâche est traitée par lots via `process_conversation_imports`, chaque message émettant `MessageReceived` dans la transaction de persistance (INV-IMP-01..04).
+
+| Use Case | Entrée → sortie | Erreurs / événements |
+|---|---|---|
+| `SubmitConversationImportUseCase` | `{ merchantId, formatCode, content, consentId, consentGiven, selectedRange }` → `{ importId, status: queued, duplicate }` | consentement/plage/format/entitlement/limite invalides; aucun événement avant traitement |
+| `GetConversationImportUseCase` | `{ merchantId, importId }` → `{ importId, status, acceptedCount, rejectedCount, errors }` | import absent ou autre tenant → 404; aucun contenu source retourné |
+| `ProcessConversationImportUseCase` (job `process_conversation_imports`) | tâche en file → `{ acceptedCount, rejectedCount, status }` | format/données invalides → `failed` ou erreurs bornées; `MessageReceived` par message accepté, Outbox atomique |
+
+Ports : `IImportFormatReader`, `IConversationImportRepository`, `IEntitlementReader`, chiffrement du contenu existant, horloge UTC injectée, Outbox Platform Connectors. Tests attendus : formats JSON/texte fr/en/sw configurés, format inconnu, consentement requis, rejeu/hash, plage UTC inclusive/exclusive, reprise par curseur, contenu chiffré, isolation tenant et émission unique de `MessageReceived`.
+
+Le seed `seed_import_formats` ajoute des formats configurables `json_messages_v1`, `chat_text_fr_v1`, `chat_text_en_v1`, `chat_text_sw_v1`; les variantes réelles d'export restent à confirmer avec des exemples fournis avec consentement. Format inconnu ou inactif: erreur explicite. Les originaux ne sont jamais retournés par l'API d'état.
+
 `NOT_A_BUSINESS_ACCOUNT` : afficher le diagnostic et le parcours guidé de migration/connexion; ne jamais basculer vers un client non officiel ni réessayer sans action du vendeur.
 
 ## Agrégats, ports et invariants

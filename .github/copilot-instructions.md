@@ -38,7 +38,7 @@ Ce projet suit strictement **Clean Architecture**, **Domain-Driven Design (DDD)*
 
 14. **Documentation obligatoire style senior/framework** : toute classe publique, tout Use Case, toute méthode qui protège un invariant métier référencé dans `/docs/16-business-invariants-and-rules.md` doit avoir un docstring complet suivant les gabarits de `/docs/17-documentation-standards.md`, citant l'identifiant de règle (`INV-XX-NN`) concerné. Un code sans cette documentation est considéré incomplet, jamais acceptable "à documenter plus tard".
 
-15. **Avant d'implémenter un Use Case, vérifier son contrat exact** dans `/docs/15-use-cases-catalog.md` (entrée, sortie, préconditions, erreurs, événements publiés) — ne jamais inventer une signature différente de celle documentée. Si le Use Case demandé n'y figure pas, l'ajouter au catalogue d'abord, puis l'implémenter.
+15. **Avant d'implémenter un Use Case, vérifier son contrat exact** dans `/docs/15-use-cases-catalog.md` (entrée, sortie, préconditions, erreurs, événements publiés) — ne jamais inventer une signature différente. Pour les contextes Afrique, le catalogue 15 est l'index et le document de contexte qu'il référence fait foi pour le contrat détaillé. Si le Use Case demandé n'y figure pas, ajouter d'abord le contrat dans le document de contexte puis son entrée/référence dans 15, avant l'implémentation.
 
 16. **Aucune vérification d'accès en dur** : toute vérification d'authentification, de tenant (merchant), ou de permission passe exclusivement par la chaîne de middleware (`/docs/21-middleware-layer.md`) et `IPermissionChecker` (`/docs/20-context-access-control.md`). Zéro `if user.role == "..."` où que ce soit dans le code applicatif ou domaine.
 

@@ -72,12 +72,24 @@
 
 ## 7B. Invariants — Contextes Afrique
 
-- **INV-IMP-01** : consentement explicite, merchant, finalité et plage/source sont enregistrés avant l’import; aucun fichier ou texte n’est analysé avant ce consentement.
-- **INV-IMP-02** : l’import est idempotent par merchant et hash canonique du message; un doublon ne produit ni second message normalisé ni nouvel événement `MessageReceived`.
-- **INV-IMP-03** : un lot est reprenable après échec, traité par lots bornés; chaque message accepté et son `MessageReceived` sont persistés dans une transaction Platform Connectors atomique.
-- **INV-IMP-04** : seuls des formats explicitement configurés/versionnés sont acceptés; format inconnu est rejeté clairement, les champs non requis sont minimisés et le contenu importé suit la politique de chiffrement/rétention.
-- **Machine d'état `ConversationImport`** : `queued -> processing -> completed|completed_with_errors|failed`; `processing -> queued` après échec transitoire; une transition terminale ne revient pas à `processing`. Les erreurs par ligne sont conservées sans contenu sensible.
+- **INV-PAY-01** : montant minor-unit et devise d'une `PaymentAttempt` sont immuables; tout webhook discordant place la tentative en `needs_review` sans effet financier.
+- **INV-PAY-02** : un seul effet par identifiant d'événement fournisseur et un seul succès par payable; le second succès devient `duplicate_payment` et émet une demande de remboursement.
+- **INV-PAY-03** : une preuve `unverified` (SMS/capture) ne confirme jamais un paiement; seul `seller_confirmed` ou `provider_confirmed` peut faire avancer l'état.
+- **INV-PAY-04** : aucun fonds détenu par la plateforme; reversement uniquement vers un `SettlementAccount` vérifié.
+- **INV-PAY-05** : les frais sont calculés et enregistrés lors de la création de la tentative, sans recalcul au webhook.
+- **INV-PAY-06** : machine `created -> pending -> succeeded|failed|expired|cancelled`, puis `succeeded -> partially_refunded|refunded`; événements tardifs/hors ordre ne régressent pas l'état; webhook après expiration => `needs_review`; les attentes anciennes sont rapprochées par job.
+- **INV-PAY-07** : paiement partiel interdit en V1; seul le montant exact est confirmé, sinon `needs_review`.
 
+ 
+ **INV-PAY-01** : `PaymentAttempt.amountMinor` et `currency` sont immuables; un webhook qui diverge place la tentative en `needs_review` et ne produit aucun effet financier.
+ **INV-PAY-02** : un seul effet par événement fournisseur et un seul paiement réussi par payable; tout second succès est `duplicate_payment` et demande un remboursement.
+ **INV-PAY-03** : les preuves `unverified` (SMS/capture) ne confirment jamais un paiement; seules les confirmations explicites vendeur ou fournisseur peuvent avancer l'état.
+ **INV-PAY-04** : la plateforme ne détient pas les fonds; les reversements ne peuvent viser qu'un `SettlementAccount` vérifié.
+ **INV-PAY-05** : les frais sont calculés et stockés à la création de l'Attempt; ils ne sont jamais recalculés au traitement d'un webhook.
+ **INV-PAY-06** : états `created -> pending -> succeeded|failed|expired|cancelled`, `succeeded -> partially_refunded|refunded`; webhook tardif après expiration => `needs_review`; les événements hors ordre ne font pas reculer l'état; les `pending` anciens sont rapprochés par job.
+ **INV-PAY-07** : paiement partiel interdit en V1; montant exact ou `needs_review`.
+ **Machine d'état `PaymentAttempt`** : `created -> pending -> succeeded|failed|expired|cancelled`; `succeeded -> partially_refunded|refunded`; les états terminaux n'acceptent aucun événement ancien hors compensation explicite.
+- **Machine d'état `ConversationImport`** : `queued -> processing -> completed|completed_with_errors|failed`; `processing -> queued` après échec transitoire; une transition terminale ne revient pas à `processing`. Les erreurs par ligne sont conservées sans contenu sensible.
 - **INV-CP-01..03** : CountryPack publié/versionné; données non validées restent signalées; absence de configuration requise bloque l'opération.
 - **INV-MM-01..05** : preuve distincte d'un paiement confirmé; identifiant de transaction dédupliqué; montant/devise rapprochés; pas de custodie; écritures et marqueurs idempotents.
 - **INV-FX-01..04** : taux positif versionné; snapshot immuable; arrondi configurable; dépassement de seuil alerte sans changer automatiquement le prix.

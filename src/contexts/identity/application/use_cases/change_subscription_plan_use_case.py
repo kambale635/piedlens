@@ -30,6 +30,11 @@ class ChangeSubscriptionPlanUseCase:
 
     def execute(self, merchant_id: UUID, new_plan: str) -> dict:
         """Change one Merchant aggregate after payment confirmation (INV-ID-03)."""
+        with self.unit_of_work:
+            return self.change_in_current_transaction(merchant_id, new_plan)
+
+    def change_in_current_transaction(self, merchant_id: UUID, new_plan: str) -> dict:
+        """Apply the same validated Merchant transition inside a caller-owned consumer transaction (INV-ID-03/INV-TR-01/02/03)."""
         merchant = self.merchants.find_by_id(merchant_id)
         if merchant is None:
             raise MerchantNotFound()
@@ -46,9 +51,8 @@ class ChangeSubscriptionPlanUseCase:
             new_plan, self.usage.count_active_connections(merchant_id), limit
         )
         effective_at = self.clock.now_utc().astimezone(timezone.utc)
-        with self.unit_of_work:
-            self.merchants.save(updated)
-            self.outbox.add(MerchantPlanChanged(merchant.id, new_plan, effective_at))
+        self.merchants.save(updated)
+        self.outbox.add(MerchantPlanChanged(merchant.id, new_plan, effective_at))
         return {
             "merchantId": merchant.id,
             "subscriptionPlan": new_plan,

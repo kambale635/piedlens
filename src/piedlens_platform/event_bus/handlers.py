@@ -174,6 +174,20 @@ def handle_detection_candidate_promoted(envelope):
     ApplicationContainer.create_order_from_promoted_detection().execute(event)
 
 
+def handle_payment_succeeded(envelope):
+    """Apply a successful subscription payment in Identity's own transaction (INV-PAY-02/INV-ID-03/T1/T2/T7)."""
+    if envelope.get("eventType") != "PaymentSucceeded":
+        return
+    payload = envelope["payload"]
+    if payload.get("payable_type") != "subscription":
+        return
+    ApplicationContainer.consume_payment_succeeded().execute(
+        event_id=_uuid(envelope["eventId"]),
+        merchant_id=_uuid(payload["merchant_id"]),
+        plan_code=payload["payable_reference"],
+    )
+
+
 def handle_merchant_data_deleted(envelope):
     """Dispatch Backup deletion events to the configured context-owned purge handler (INV-BK-06)."""
     if envelope.get("producedBy") != "backup" or envelope.get("eventType") != "MerchantDataDeleted":

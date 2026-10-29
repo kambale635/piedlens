@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     "contexts.rules_engine.apps.RulesEngineConfig",
     "contexts.identity.apps.IdentityConfig",
     "contexts.billing.apps.BillingConfig",
+    "contexts.payments.apps.PaymentsConfig",
     "contexts.access_control.apps.AccessControlConfig",
     "contexts.platform_connectors.apps.PlatformConnectorsConfig",
     "contexts.backup.apps.BackupConfig",
@@ -230,6 +231,11 @@ if os.environ.get("DJANGO_SECURE_COOKIES", "0") == "1":
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
 DJANGO_MAX_REQUEST_BODY_BYTES = int(os.environ.get("DJANGO_MAX_REQUEST_BODY_BYTES", "10485760"))
+PAYMENT_PLATFORM_FEE_BASIS_POINTS = int(os.environ.get("PAYMENT_PLATFORM_FEE_BASIS_POINTS", "0"))
+PAYMENT_PLATFORM_FEE_FIXED_MINOR = {}
+PAYMENT_WEBHOOK_SECRETS = {
+    "mock": os.environ.get("PAYMENT_MOCK_WEBHOOK_SECRET", ""),
+}
 if DJANGO_MAX_REQUEST_BODY_BYTES < 1:
     raise RuntimeError("DJANGO_MAX_REQUEST_BODY_BYTES must be positive.")
 DATA_UPLOAD_MAX_MEMORY_SIZE = DJANGO_MAX_REQUEST_BODY_BYTES

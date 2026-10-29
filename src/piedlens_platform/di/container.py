@@ -372,6 +372,83 @@ from contexts.platform_connectors.infrastructure.adapters.django_connection_cons
 
 class ApplicationContainer:
     @staticmethod
+    def consume_payment_succeeded():
+        """Wire PaymentSucceeded into an idempotent Identity-owned plan transaction (INV-PAY-02/INV-ID-03/T1/T2/T7)."""
+        from contexts.payments.application.use_cases.consume_payment_succeeded_use_case import ConsumePaymentSucceededUseCase
+        from contexts.identity.infrastructure.persistence.django_identity_repositories import (
+            DjangoIdentityProcessedEventRepository,
+        )
+
+        return ConsumePaymentSucceededUseCase(
+            processed_events=DjangoIdentityProcessedEventRepository(),
+            unit_of_work=DjangoIdentityUnitOfWork(),
+            change_plan=ApplicationContainer.change_subscription_plan(),
+        )
+    @staticmethod
+    def payment_provider_registry():
+        """Build the mock provider registry; real adapters remain disabled without credentials (INV-PAY-04)."""
+        from contexts.payments.application.ports.payment_ports import (
+            ICheckoutInitiator, IPaymentStatusReader, IPaymentWebhookVerifier,
+        )
+        from contexts.payments.application.services.payment_provider_registry import PaymentProviderRegistry
+        from contexts.payments.infrastructure.adapters.mock_payment_provider import MockPaymentProvider
+
+        adapter = MockPaymentProvider()
+        return PaymentProviderRegistry({
+            "mock": {
+                ICheckoutInitiator: adapter,
+                IPaymentStatusReader: adapter,
+                IPaymentWebhookVerifier: adapter,
+            }
+        })
+
+    @staticmethod
+    def configure_payment_route():
+        """Wire platform administration of configured payment routes (INV-PAY-04)."""
+        from contexts.payments.application.use_cases.configure_payment_route_use_case import ConfigurePaymentRouteUseCase
+        from contexts.payments.infrastructure.repositories import DjangoPaymentRouteReader
+
+        return ConfigurePaymentRouteUseCase(DjangoPaymentRouteReader())
+
+    @staticmethod
+    def start_payment():
+        """Wire server-priced payment startup and PaymentAttempt Outbox (INV-PAY-01/02/05/T5/T7)."""
+        from contexts.payments.application.use_cases.start_payment_use_case import StartPaymentUseCase
+        from contexts.payments.infrastructure.repositories import DjangoPaymentRepository, DjangoPaymentOutbox, DjangoPaymentRouteReader
+        from contexts.payments.infrastructure.adapters.django_subscription_payable_reader import DjangoSubscriptionPayableReader
+        from contexts.payments.infrastructure.persistence.unit_of_work import DjangoPaymentsUnitOfWork
+        from contexts.payments.infrastructure.adapters.system_payment_clock import SystemPaymentClock
+        from contexts.payments.infrastructure.adapters.configured_payment_fee_policy import ConfiguredPaymentFeePolicy
+
+        return StartPaymentUseCase(
+            payable_reader=DjangoSubscriptionPayableReader(),
+            route_reader=DjangoPaymentRouteReader(),
+            provider_registry=ApplicationContainer.payment_provider_registry(),
+            payments=DjangoPaymentRepository(),
+            unit_of_work=DjangoPaymentsUnitOfWork(),
+            outbox=DjangoPaymentOutbox(),
+            clock=SystemPaymentClock(),
+            fee_policy=ConfiguredPaymentFeePolicy(),
+        )
+
+    @staticmethod
+    def handle_payment_webhook():
+        """Wire signed provider webhook processing with Redis replay protection (INV-PAY-01/02/06/T2/T7)."""
+        from contexts.payments.application.use_cases.handle_payment_webhook_use_case import HandlePaymentWebhookUseCase
+        from contexts.payments.infrastructure.repositories import DjangoPaymentRepository, DjangoPaymentOutbox
+        from contexts.payments.infrastructure.persistence.unit_of_work import DjangoPaymentsUnitOfWork
+        from contexts.payments.infrastructure.adapters.redis_payment_replay_cache import RedisPaymentReplayCache
+        from contexts.payments.infrastructure.adapters.system_payment_clock import SystemPaymentClock
+
+        return HandlePaymentWebhookUseCase(
+            payments=DjangoPaymentRepository(),
+            registry=ApplicationContainer.payment_provider_registry(),
+            replay_cache=RedisPaymentReplayCache(),
+            unit_of_work=DjangoPaymentsUnitOfWork(),
+            outbox=DjangoPaymentOutbox(),
+            clock=SystemPaymentClock(),
+        )
+    @staticmethod
     def generate_billing_value_report() -> GenerateValueReportUseCase:
         """Assemble Billing's report with Identity read ports at the system boundary."""
         return GenerateValueReportUseCase(

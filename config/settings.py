@@ -7,6 +7,7 @@ from .observability import initialize_sentry_if_configured
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+DJANGO_ENV = os.environ.get("DJANGO_ENV", "development")
 validate_production_configuration(os.environ)
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or secrets.token_urlsafe(50)
 DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"

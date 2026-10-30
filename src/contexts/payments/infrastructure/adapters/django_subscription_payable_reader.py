@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from ..persistence.repositories import DjangoPaymentPriceReader
+from ..repositories import DjangoPaymentPriceReader
 
 
 class DjangoSubscriptionPayableReader:

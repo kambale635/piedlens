@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+from datetime import datetime, timezone
 
 from django.conf import settings
 
@@ -23,6 +24,13 @@ class MockPaymentProvider:
     def verify(self, provider_code, raw_body, signature, timestamp):
         """Verify only the configured local mock HMAC; never a real provider signature."""
         if provider_code != "mock" or not timestamp:
+            return False
+        try:
+            timestamp_seconds = int(timestamp)
+        except (TypeError, ValueError):
+            return False
+        age_seconds = abs(int(datetime.now(timezone.utc).timestamp()) - timestamp_seconds)
+        if age_seconds > settings.PLATFORM_WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS:
             return False
         secret = settings.PAYMENT_WEBHOOK_SECRETS.get(provider_code, "")
         expected = hmac.new(

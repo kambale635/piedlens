@@ -114,22 +114,7 @@ class DjangoPaymentRouteReader:
 
 
 class DjangoPaymentPriceReader:
-    """Resolve configured subscription price through Identity/Billing at the system boundary (INV-PAY-01/05/T5)."""
-
-    def subscription_price(self, merchant_id, plan_code, period_days):
-        from contexts.billing.infrastructure.persistence.models import PlanPriceRecord
-        from contexts.identity.infrastructure.adapters.django_merchant_country_reader import DjangoMerchantCountryReader
-        from contexts.identity.infrastructure.adapters.django_merchant_currency_reader import DjangoMerchantCurrencyReader
-
-        country = DjangoMerchantCountryReader().country_code_for(merchant_id)
-        currency = DjangoMerchantCurrencyReader().currency_for(merchant_id)
-        price = PlanPriceRecord.objects.filter(
-            plan__code=plan_code, plan__is_active=True, country=country,
-            currency=currency, period_days=period_days, is_active=True,
-        ).first()
-        if price is None:
-            return None
-        return {"country": country, "currency": currency, "amount_minor": price.amount_minor}
+    """Read PaymentRoute data only; subscription prices use a composition adapter (INV-PAY-01/05/T5)."""
 
     def upsert(self, route):
         PaymentRouteRecord.objects.update_or_create(

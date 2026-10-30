@@ -1,3 +1,3 @@
-Fait : P1 commitée; P2 checkpoint compilable, Django check et migrations synchronisés.
-Prochaine action : valider P2a (PaymentAttempt, démarrage, webhook) puis compléter P2b–d.
-Test : `./venv/bin/python manage.py test tests.unit.payments tests.integration.payments tests.architecture.test_architecture_boundaries --settings=config.test_settings -v 1`
+Fait : P2a validée : PaymentAttempt, prix serveur, Idempotency-Key, webhook mock signé/anti-rejeu, garde-fou production; ciblés 24/24, migrations synchronisées.
+Prochaine action : commit P2a par chemins explicites; poursuivre P2b avec consumer Identity idempotent et compensation vers `needs_review`.
+Test P2b : `./venv/bin/python manage.py test tests.unit.payments.test_consume_payment_succeeded_use_case tests.integration.payments --settings=config.test_settings -v 1`

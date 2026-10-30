@@ -373,20 +373,39 @@ from contexts.platform_connectors.infrastructure.adapters.django_connection_cons
 class ApplicationContainer:
     @staticmethod
     def consume_payment_succeeded():
-        """Wire PaymentSucceeded into an idempotent Identity-owned plan transaction (INV-PAY-02/INV-ID-03/T1/T2/T7)."""
-        from contexts.payments.application.use_cases.consume_payment_succeeded_use_case import ConsumePaymentSucceededUseCase
+        """Compose the Identity plan consumer at the system boundary (INV-PAY-02/INV-ID-03/T1/T2/T7)."""
+        from uuid import UUID
+
+        from contexts.identity.application.exceptions.identity_exceptions import InvalidMerchantData
+        from contexts.identity.domain.exceptions.identity_exceptions import DowngradeExceedsCurrentUsage
         from contexts.identity.infrastructure.persistence.django_identity_repositories import (
             DjangoIdentityProcessedEventRepository,
+            DjangoMerchantRepository,
         )
+        processed = DjangoIdentityProcessedEventRepository()
+        unit_of_work = DjangoIdentityUnitOfWork()
+        change_plan = ApplicationContainer.change_subscription_plan()
 
-        return ConsumePaymentSucceededUseCase(
-            processed_events=DjangoIdentityProcessedEventRepository(),
-            unit_of_work=DjangoIdentityUnitOfWork(),
-            change_plan=ApplicationContainer.change_subscription_plan(),
-        )
+        class IdentityPlanPaymentConsumer:
+            CONSUMER_NAME = "identity-payment-succeeded"
+
+            def execute(self, event_id, merchant_id, plan_code):
+                try:
+                    with unit_of_work:
+                        if processed.has_processed(event_id, self.CONSUMER_NAME):
+                            return {"outcome": "already_processed"}
+                        change_plan.change_in_current_transaction(merchant_id, plan_code)
+                        processed.mark_processed(event_id, self.CONSUMER_NAME)
+                    return {"outcome": "plan_changed", "planCode": plan_code}
+                except (InvalidMerchantData, DowngradeExceedsCurrentUsage):
+                    return {"outcome": "needs_review", "merchantId": merchant_id}
+
+        return IdentityPlanPaymentConsumer()
     @staticmethod
     def payment_provider_registry():
         """Build the mock provider registry; real adapters remain disabled without credentials (INV-PAY-04)."""
+        if settings.DJANGO_ENV == "production":
+            raise RuntimeError("The mock payment provider is forbidden in production.")
         from contexts.payments.application.ports.payment_ports import (
             ICheckoutInitiator, IPaymentStatusReader, IPaymentWebhookVerifier,
         )
@@ -416,12 +435,18 @@ class ApplicationContainer:
         from contexts.payments.application.use_cases.start_payment_use_case import StartPaymentUseCase
         from contexts.payments.infrastructure.repositories import DjangoPaymentRepository, DjangoPaymentOutbox, DjangoPaymentRouteReader
         from contexts.payments.infrastructure.adapters.django_subscription_payable_reader import DjangoSubscriptionPayableReader
+        from piedlens_platform.di.subscription_payable_reader import SubscriptionPayableReader
         from contexts.payments.infrastructure.persistence.unit_of_work import DjangoPaymentsUnitOfWork
         from contexts.payments.infrastructure.adapters.system_payment_clock import SystemPaymentClock
         from contexts.payments.infrastructure.adapters.configured_payment_fee_policy import ConfiguredPaymentFeePolicy
 
         return StartPaymentUseCase(
-            payable_reader=DjangoSubscriptionPayableReader(),
+            payable_reader=DjangoSubscriptionPayableReader(
+                price_reader=SubscriptionPayableReader(
+                    country_reader=DjangoMerchantCountryReader(),
+                    currency_reader=DjangoMerchantCurrencyReader(),
+                )
+            ),
             route_reader=DjangoPaymentRouteReader(),
             provider_registry=ApplicationContainer.payment_provider_registry(),
             payments=DjangoPaymentRepository(),

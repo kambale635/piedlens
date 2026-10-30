@@ -196,6 +196,9 @@ Le `merchantId` vient toujours du `TenantIsolationMiddleware`.
 |---|---|
 | `POST /api/v1/platform-connections` | `platform.connect` |
 | `POST /api/v1/imports`, `GET /api/v1/imports/{import_id}` | `message.import` |
+| `POST /api/v1/payments/checkout` | `payment.start` |
+| `PUT /api/v1/admin/payment-routes` | `payment.route.manage` (permission globale) |
+| `POST /api/v1/webhooks/payments/{provider}` | `@public_route`, signature HMAC, horodatage borné et anti-rejeu |
 | `GET /api/v1/backups`, `GET /api/v1/backups/exports/{id}` | `backup.read` |
 | `POST /api/v1/backups/{id}/restore` | `backup.restore` |
 | `GET /api/v1/backups/objects/{reference}` | `@public_route` avec signature HMAC temporaire obligatoire |

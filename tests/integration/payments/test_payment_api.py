@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import logging
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from uuid import uuid4
@@ -107,3 +108,38 @@ class PaymentApiTests(TestCase):
         from contexts.identity.infrastructure.adapters.django_security_services import DjangoTokenService
 
         return DjangoTokenService().issue_tokens(self.user_id)["accessToken"]
+
+    @override_settings(DJANGO_ENV="production")
+    def test_mock_provider_registry_is_refused_in_production(self):
+        from piedlens_platform.di.container import ApplicationContainer
+
+        with self.assertRaisesRegex(RuntimeError, "forbidden in production"):
+            ApplicationContainer.payment_provider_registry()
+
+    @override_settings(PAYMENT_WEBHOOK_SECRETS={"mock": "payments-test-secret"})
+    def test_invalid_webhook_logs_do_not_contain_payment_payload(self):
+        sentinel_content = "sensitive-payment-reference-88991234"
+        body = json.dumps({
+            "event_id": "invalid-log-test",
+            "attempt_id": str(uuid4()),
+            "amount_minor": 987654321,
+            "currency": "USD",
+            "outcome": "succeeded",
+            "provider_reference": sentinel_content,
+            "sms_body": sentinel_content,
+        }).encode()
+        timestamp = str(int(datetime.now(timezone.utc).timestamp()))
+
+        with self.assertLogs(level="INFO") as captured:
+            response = self.client.post(
+                "/api/v1/webhooks/payments/mock",
+                data=body,
+                content_type="application/json",
+                HTTP_X_PAYMENT_SIGNATURE="sha256=invalid",
+                HTTP_X_WEBHOOK_TIMESTAMP=timestamp,
+            )
+
+        self.assertIn(response.status_code, {400, 401})
+        output = "\n".join(captured.output)
+        self.assertNotIn(sentinel_content, output)
+        self.assertNotIn("987654321", output)

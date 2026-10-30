@@ -418,6 +418,7 @@ Use Cases et leurs contrats complets — entrée, sortie, erreurs, événements,
 | Storefront & Status Studio | `PrepareProductCardUseCase`, `ApproveProductCardUseCase`, `MarkStatusPublishedUseCase`, `SchedulePublicationReminderUseCase`, `ResolveTrackingCodeUseCase`, `PublishReadOnlyStorefrontUseCase`, `GetPublicStorefrontUseCase` | `38-context-storefront-status-studio.md` |
 | WhatsApp onboarding | `GuideWhatsAppBusinessOnboardingUseCase`, `CheckWhatsAppBusinessCapabilityUseCase`, `ImportConversationExportUseCase`, `AnalyzePastedMessagesUseCase`, `RevokeConversationImportConsentUseCase` | `39-whatsapp-onboarding-and-compliance.md` |
 | Intake manuel agnostique | `SubmitConversationImportUseCase`, `GetConversationImportUseCase`, `ProcessConversationImportUseCase` | `39-whatsapp-onboarding-and-compliance.md` |
+| Payments | `StartPaymentUseCase`, `HandlePaymentWebhookUseCase`, `ConfigurePaymentRouteUseCase` | `32-context-mobile-money.md` et `41-implementation-decisions.md` |
 
 ---
 

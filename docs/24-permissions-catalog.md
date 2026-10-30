@@ -10,6 +10,8 @@ Catalogue extrait des vues enregistrées dans le resolver Django, via leur attri
 | `role.revoke` | Access Control | `DELETE /api/v1/role-assignments/{role_assignment_id}` |
 | `platform.connect` | Platform Connectors | `POST /api/v1/platform-connections` |
 | `message.import` | Platform Connectors | `POST /api/v1/imports`, `GET /api/v1/imports/{import_id}` |
+| `payment.start` | Payments | `POST /api/v1/payments/checkout` |
+| `payment.route.manage` | Payments | `PUT /api/v1/admin/payment-routes` (permission globale) |
 | `backup.read` | Backup | `GET /api/v1/backups`, `GET /api/v1/backups/exports/{export_job_id}` |
 | `backup.restore` | Backup | `POST /api/v1/backups/{platform_connection_id}/restore` |
 | `@public_route` | Backup | `GET /api/v1/backups/objects/{reference}` (signature temporaire obligatoire) |
